@@ -43,11 +43,24 @@ type Engine struct {
 	circuitVariation string
 }
 
-type telemetryDataState struct {
-	canStartLap             bool
-	canAdvanceLap           bool
-	canAppendCurrentLapTick bool
-	shouldSaveCompletedLap  bool
+type telemetryPhase string
+
+const (
+	telemetryPhaseNotLapping      telemetryPhase = "not_lapping"
+	telemetryPhaseRace            telemetryPhase = "race"
+	telemetryPhaseReplayOnly      telemetryPhase = "replay_only"
+	telemetryPhaseReplayAndRecord telemetryPhase = "replay_and_record"
+)
+
+// telemetryMode keeps mutually exclusive data phases separate from overlays.
+// not_lapping means telemetry is not inside a recordable numbered lap; this can
+// be a menu/loading state, or circuit telemetry before CurrentLap becomes > 0.
+// Paused and race-complete states keep their race/replay phase so lap transition
+// and save policy remain explicit.
+type telemetryMode struct {
+	phase      telemetryPhase
+	isPaused   bool
+	isFinished bool
 }
 
 func New(h *hub.Hub, lapMgr *lap.Manager, psIP string) *Engine {
@@ -58,16 +71,47 @@ func New(h *hub.Hub, lapMgr *lap.Manager, psIP string) *Engine {
 	}
 }
 
-func newTelemetryDataState(snapshot *tmodel.TelemetrySnapshot, isReplayRecordEnabled bool) telemetryDataState {
-	isTrackLap := snapshot.InRace && snapshot.CurrentLap > 0
-	isRunning := isTrackLap && !snapshot.IsPaused
-
-	return telemetryDataState{
-		canStartLap:             isTrackLap && !snapshot.IsRaceComplete,
-		canAdvanceLap:           isRunning,
-		canAppendCurrentLapTick: isRunning && !snapshot.IsRaceComplete,
-		shouldSaveCompletedLap:  !snapshot.IsReplay || isReplayRecordEnabled,
+func newTelemetryMode(snapshot *tmodel.TelemetrySnapshot, isReplayRecordEnabled bool) telemetryMode {
+	isLapping := snapshot.InRace && snapshot.CurrentLap > 0
+	if !isLapping {
+		return telemetryMode{phase: telemetryPhaseNotLapping}
 	}
+
+	mode := telemetryMode{
+		phase:      telemetryPhaseRace,
+		isPaused:   snapshot.IsPaused,
+		isFinished: snapshot.IsRaceComplete,
+	}
+	if snapshot.IsReplay {
+		if isReplayRecordEnabled {
+			mode.phase = telemetryPhaseReplayAndRecord
+			return mode
+		}
+		mode.phase = telemetryPhaseReplayOnly
+	}
+	return mode
+}
+
+func (mode telemetryMode) CanStartLap() bool {
+	return !mode.isFinished && mode.isTrackLap()
+}
+
+func (mode telemetryMode) CanAdvanceLap() bool {
+	return !mode.isPaused && mode.isTrackLap()
+}
+
+func (mode telemetryMode) CanAppendCurrentLapTick() bool {
+	return !mode.isPaused && !mode.isFinished && mode.isTrackLap()
+}
+
+func (mode telemetryMode) ShouldSaveCompletedLap() bool {
+	return mode.phase == telemetryPhaseRace || mode.phase == telemetryPhaseReplayAndRecord
+}
+
+func (mode telemetryMode) isTrackLap() bool {
+	return mode.phase == telemetryPhaseRace ||
+		mode.phase == telemetryPhaseReplayOnly ||
+		mode.phase == telemetryPhaseReplayAndRecord
 }
 
 func (e *Engine) Start(ctx context.Context) error {
@@ -245,20 +289,20 @@ func (e *Engine) broadcastSnapshot() {
 	}
 
 	curLap := snapshot.CurrentLap
-	dataState := newTelemetryDataState(snapshot, e.forceRecord.Load())
+	dataMode := newTelemetryMode(snapshot, e.forceRecord.Load())
 
-	if !e.lapManager.IsCurrentLapActive() && dataState.canStartLap {
+	if !e.lapManager.IsCurrentLapActive() && dataMode.CanStartLap() {
 		e.startNewLap(t, snapshot)
 	}
 
-	if dataState.canAdvanceLap && e.lapManager.IsCurrentLapActive() {
-		e.handleLapTransition(t, dataState.shouldSaveCompletedLap)
-		if !e.lapManager.IsCurrentLapActive() && dataState.canStartLap {
+	if dataMode.CanAdvanceLap() && e.lapManager.IsCurrentLapActive() {
+		e.handleLapTransition(t, dataMode.ShouldSaveCompletedLap())
+		if !e.lapManager.IsCurrentLapActive() && dataMode.CanStartLap() {
 			e.startNewLap(t, snapshot)
 		}
 	}
 
-	if dataState.canAppendCurrentLapTick && e.lapManager.IsCurrentLapActive() {
+	if dataMode.CanAppendCurrentLapTick() && e.lapManager.IsCurrentLapActive() {
 		tireTemps := models.CornerSet{
 			FrontLeft:  t.TyreTemperatureCelsius().FrontLeft,
 			FrontRight: t.TyreTemperatureCelsius().FrontRight,

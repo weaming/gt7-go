@@ -260,6 +260,8 @@ function initCharts() {
 const distanceChartNames = ['speed', 'throttle', 'braking', 'coasting', 'yawrate', 'gear', 'rpm', 'boost', 'tires', 'variance', 'timediff'];
 
 function updateAllCharts() {
+  normalizeSelectedTarget();
+
   const selectableLaps = getSelectableLaps();
   const targetLapIndex = getSelectedLapIndex(selectableLaps);
   const best = getBestLap(selectableLaps);
@@ -347,34 +349,58 @@ function newHistoryTarget(index, lap = lapsData[index]) {
 }
 
 function normalizeSelectedTarget() {
-  if (selectedTarget.type === 'live') {
-    return;
+  commitSelectedTarget(normalizedSelectedTarget(currentViewState()));
+}
+
+function currentViewState() {
+  return {
+    target: selectedTarget,
+    historyLaps: lapsData,
+    liveLap,
+  };
+}
+
+function normalizedSelectedTarget(viewState) {
+  const target = viewState.target;
+  const historyLaps = viewState.historyLaps;
+
+  if (!target || target.type === 'live') {
+    return newLiveTarget();
   }
-  if (selectedTarget.type === 'history') {
-    const index = findSelectedHistoryIndex();
+
+  if (target.type === 'history') {
+    const index = findHistoryTargetIndex(target, historyLaps);
     if (index >= 0) {
-      selectedTarget = newHistoryTarget(index);
-      saveSelectedTarget();
-      return;
+      return newHistoryTarget(index, historyLaps[index]);
     }
   }
-  if (liveLap) {
-    selectedTarget = newLiveTarget();
-    saveSelectedTarget();
+
+  if (viewState.liveLap) {
+    return newLiveTarget();
+  }
+
+  if (historyLaps.length > 0) {
+    const fallbackIndex = Math.min(Math.max(target.index, 0), historyLaps.length - 1);
+    return newHistoryTarget(fallbackIndex, historyLaps[fallbackIndex]);
+  }
+
+  return { type: 'none', index: -1, key: '' };
+}
+
+function commitSelectedTarget(nextTarget) {
+  if (isSameTarget(selectedTarget, nextTarget)) {
     return;
   }
-  if (lapsData.length > 0) {
-    const fallbackIndex = Math.min(Math.max(selectedTarget.index, 0), lapsData.length - 1);
-    selectedTarget = newHistoryTarget(fallbackIndex);
-    saveSelectedTarget();
-    return;
-  }
-  selectedTarget = { type: 'none', index: -1, key: '' };
+
+  selectedTarget = nextTarget;
   saveSelectedTarget();
 }
 
+function isSameTarget(a, b) {
+  return !!a && !!b && a.type === b.type && a.index === b.index && a.key === b.key;
+}
+
 function getSelectedLapIndex(selectableLaps) {
-  normalizeSelectedTarget();
   if (selectableLaps.length === 0) {
     return -1;
   }
@@ -423,17 +449,21 @@ function saveSelectedTarget() {
 }
 
 function findSelectedHistoryIndex() {
-  if (selectedTarget.type !== 'history') {
+  return findHistoryTargetIndex(selectedTarget, lapsData);
+}
+
+function findHistoryTargetIndex(target, historyLaps) {
+  if (!target || target.type !== 'history') {
     return -1;
   }
-  if (selectedTarget.key) {
-    const keyIndex = lapsData.findIndex(lap => lapIdentity(lap) === selectedTarget.key);
+  if (target.key) {
+    const keyIndex = historyLaps.findIndex(lap => lapIdentity(lap) === target.key);
     if (keyIndex >= 0) {
       return keyIndex;
     }
   }
-  if (selectedTarget.index >= 0 && selectedTarget.index < lapsData.length) {
-    return selectedTarget.index;
+  if (target.index >= 0 && target.index < historyLaps.length) {
+    return target.index;
   }
   return -1;
 }
