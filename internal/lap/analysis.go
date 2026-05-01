@@ -55,11 +55,16 @@ func IsCompleteLap(lap *models.Lap) bool {
 	return false
 }
 
+const (
+	timeDiffMaxPoints        = 500
+	timeDiffReferenceWindow  = 1200
+	timeDiffReferenceLookout = 300
+)
+
 // ComputeTimeDiff computes the time difference between a comparison lap and
-// a reference lap using direct position matching: for each point along the
-// reference lap's track, find the nearest corresponding position in the
-// comparison lap and compare their elapsed times. This is more accurate than
-// cumulative-distance matching because it handles different racing lines.
+// a reference lap by anchoring each comparison point to the nearest plausible
+// reference position. Matching is monotonic so a nearby crossing or the
+// start/finish closure cannot jump backward to another segment.
 func ComputeTimeDiff(ref, comp *models.Lap) *models.TimeDiffResult {
 	if len(ref.DataPositionX) < 10 || len(comp.DataPositionX) < 10 {
 		return nil
@@ -71,70 +76,88 @@ func ComputeTimeDiff(ref, comp *models.Lap) *models.TimeDiffResult {
 		return nil
 	}
 
-	totalDist := refDist[len(refDist)-1]
-	compTotalDist := compDist[len(compDist)-1]
-	maxDist := math.Min(totalDist, compTotalDist)
-	if maxDist <= 0 {
+	if refDist[len(refDist)-1] <= 0 || compDist[len(compDist)-1] <= 0 {
 		return nil
 	}
 
-	numPoints := 500
-	dist := make([]float64, numPoints)
-	delta := make([]float64, numPoints)
+	sampleIndices := timeDiffSampleIndices(len(compDist), timeDiffMaxPoints)
+	dist := make([]float64, len(sampleIndices))
+	delta := make([]float64, len(sampleIndices))
+	lastRefIdx := 0
 
-	// Precompute comparison position array for nearest-neighbor search.
-	// Track length ratio guides the initial search position.
-	ratio := float64(len(comp.DataPositionX)) / float64(len(ref.DataPositionX))
+	for i, compIdx := range sampleIndices {
+		dist[i] = compDist[compIdx]
 
-	for i := range numPoints {
-		d := maxDist * float64(i) / float64(numPoints-1)
-		dist[i] = d
-
-		// Time on reference lap at this distance
-		refTime := interpTimeAtDist(refDist, d)
-
-		// Find the corresponding index in the reference lap
-		refIdx := sort.SearchFloat64s(refDist, d)
-		if refIdx >= len(refDist) {
-			refIdx = len(refDist) - 1
+		expectedRefIdx := sort.SearchFloat64s(refDist, compDist[compIdx])
+		if expectedRefIdx >= len(refDist) {
+			expectedRefIdx = len(refDist) - 1
 		}
 
-		// Estimate starting position in comparison lap using track ratio
-		estIdx := int(float64(refIdx) * ratio)
-		if estIdx >= len(comp.DataPositionX) {
-			estIdx = len(comp.DataPositionX) - 1
+		lo := max(lastRefIdx, expectedRefIdx-timeDiffReferenceWindow)
+		hi := min(len(refDist)-1, expectedRefIdx+timeDiffReferenceWindow)
+		if hi < lo {
+			hi = min(len(refDist)-1, lo+timeDiffReferenceLookout)
 		}
 
-		// Nearest-neighbor search within a ±200 index window
-		searchHalf := 200
-		lo := max(0, estIdx-searchHalf)
-		hi := min(len(comp.DataPositionX)-1, estIdx+searchHalf)
-
-		rx, rz := ref.DataPositionX[refIdx], ref.DataPositionZ[refIdx]
-		bestIdx := estIdx
-		bestDistSq := math.MaxFloat64
-		for j := lo; j <= hi; j++ {
-			dx := comp.DataPositionX[j] - rx
-			dz := comp.DataPositionZ[j] - rz
-			d2 := dx*dx + dz*dz
-			if d2 < bestDistSq {
-				bestDistSq = d2
-				bestIdx = j
-			}
-		}
-
-		// Time on comparison lap at the matched position
-		compTime := float64(bestIdx) / 60.0
-
-		if refTime >= 0 && compTime >= 0 {
-			delta[i] = (compTime - refTime) * 1000
-		}
+		refIdx := nearestReferenceIndex(
+			ref.DataPositionX,
+			ref.DataPositionZ,
+			comp.DataPositionX[compIdx],
+			comp.DataPositionZ[compIdx],
+			lo,
+			hi,
+		)
+		lastRefIdx = refIdx
+		delta[i] = (float64(compIdx) - float64(refIdx)) * 1000.0 / 60.0
 	}
 
 	return &models.TimeDiffResult{
 		Distance:  dist,
 		Timedelta: delta,
 	}
+}
+
+func timeDiffSampleIndices(length, maxPoints int) []int {
+	if length <= 0 || maxPoints <= 0 {
+		return nil
+	}
+	if length <= maxPoints {
+		indices := make([]int, length)
+		for i := range length {
+			indices[i] = i
+		}
+		return indices
+	}
+
+	indices := make([]int, maxPoints)
+	last := length - 1
+	for i := range maxPoints {
+		indices[i] = int(math.Round(float64(last) * float64(i) / float64(maxPoints-1)))
+	}
+	return indices
+}
+
+func nearestReferenceIndex(posX, posZ []float64, targetX, targetZ float64, lo, hi int) int {
+	if len(posX) == 0 || len(posZ) == 0 {
+		return 0
+	}
+
+	limit := min(len(posX), len(posZ)) - 1
+	lo = max(0, min(lo, limit))
+	hi = max(lo, min(hi, limit))
+
+	bestIdx := lo
+	bestDistSq := math.MaxFloat64
+	for i := lo; i <= hi; i++ {
+		dx := posX[i] - targetX
+		dz := posZ[i] - targetZ
+		distSq := dx*dx + dz*dz
+		if distSq < bestDistSq {
+			bestDistSq = distSq
+			bestIdx = i
+		}
+	}
+	return bestIdx
 }
 
 // trackDistance computes cumulative 2D distance along the track from XZ
@@ -154,30 +177,4 @@ func trackDistance(posX, posZ []float64) []float64 {
 		dist[i] = dist[i-1] + math.Sqrt(dx*dx+dz*dz)
 	}
 	return dist
-}
-
-// interpTimeAtDist interpolates the time (in seconds, assuming 60fps) at a
-// given cumulative track distance. Returns -1 if distance is out of range.
-func interpTimeAtDist(dist []float64, target float64) float64 {
-	if len(dist) == 0 {
-		return -1
-	}
-	if target <= dist[0] {
-		return 0
-	}
-	last := len(dist) - 1
-	if target >= dist[last] {
-		return float64(last) / 60.0
-	}
-
-	lo := sort.SearchFloat64s(dist, target)
-	if lo <= 0 {
-		return 0
-	}
-	if lo >= len(dist) {
-		return float64(last) / 60.0
-	}
-
-	frac := (target - dist[lo-1]) / (dist[lo] - dist[lo-1])
-	return (float64(lo-1) + frac) / 60.0
 }
