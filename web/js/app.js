@@ -1,8 +1,8 @@
 const ws = new WSClient();
 const charts = {};
+const SELECTED_TARGET_STORAGE_KEY = 'gt7_selected_target';
 let lapsData = [];
-let selectedLapIndex = 0;
-let pinnedLiveLap = true;
+let selectedTarget = loadSelectedTarget();
 let liveLap = null;
 let currentLiveLapNum = -1;
 let lastTelemetrySequenceID = 0;
@@ -123,14 +123,7 @@ function accumulateLiveLap(snap) {
   liveLap.fuel_consumed = liveLap.fuel_at_start - liveLap.fuel_at_end;
 }
 
-function getLapsForCharts() {
-  if (isReplayMode) {
-    const referenceLap = getBestLap(lapsData);
-    const replayLaps = [];
-    if (referenceLap) replayLaps.push(referenceLap);
-    if (liveLap) replayLaps.push(liveLap);
-    return replayLaps;
-  }
+function getSelectableLaps() {
   if (!liveLap) return lapsData;
   return lapsData.concat(liveLap);
 }
@@ -186,8 +179,17 @@ ws.on('live_lap_diff', (data) => {
   }
 });
 
-ws.on('lap_completed', () => {
+ws.on('lap_completed', (data) => {
+  const wasLiveSelected = isLiveLapSelected();
+  const completedLap = data && (data.lap || data.data || data);
+
   liveLap = null;
+  if (wasLiveSelected && completedLap) {
+    selectedTarget = newHistoryTarget(0, completedLap);
+  } else {
+    normalizeSelectedTarget();
+  }
+  updateAllCharts();
 });
 
 ws.on('laps_updated', (data) => {
@@ -197,9 +199,7 @@ ws.on('laps_updated', (data) => {
       lap.data_speed._tickInterval = (lap.lap_finish_time / 1000) / lap.lap_ticks;
     }
   }
-  if (pinnedLiveLap) {
-    selectedLapIndex = lapsData.length;
-  }
+  normalizeSelectedTarget();
   updateAllCharts();
   refreshLapFiles();
 });
@@ -222,6 +222,7 @@ ws.on('current_lap', (data) => {
 ws.on('current_lap_cleared', () => {
   liveLap = null;
   currentLiveLapNum = -1;
+  normalizeSelectedTarget();
   updateAllCharts();
 });
 
@@ -251,8 +252,9 @@ function initCharts() {
 const distanceChartNames = ['speed', 'throttle', 'braking', 'coasting', 'yawrate', 'gear', 'rpm', 'boost', 'tires', 'variance', 'timediff'];
 
 function updateAllCharts() {
-  const lapsWithLive = getLapsForCharts();
-  const best = getBestLap(lapsWithLive);
+  const selectableLaps = getSelectableLaps();
+  const targetLapIndex = getSelectedLapIndex(selectableLaps);
+  const best = getBestLap(selectableLaps);
   const visibleChartNames = getVisibleChartNames();
   // Use the best lap's total distance as the x-axis max so all laps
   // render on the same scale. When the best lap is incomplete, fall
@@ -269,8 +271,7 @@ function updateAllCharts() {
   Object.entries(chartModules).forEach(([name, mod]) => {
     if (!mod.update) return;
     if (!visibleChartNames.has(name)) return;
-    const chartIndex = (pinnedLiveLap && liveLap) || isReplayMode ? lapsWithLive.length - 1 : selectedLapIndex;
-    mod.update(lapsWithLive, chartIndex);
+    mod.update(selectableLaps, targetLapIndex);
   });
   // Always set xAxis.max — when the best lap transitions from incomplete
   // to complete, the old max stays cached in ECharts if we skip the call.
@@ -292,9 +293,8 @@ function updateAllCharts() {
     if (chart) chart.setOption({ xAxis: { max, axisLabel }, grid: { right: 25 } });
   });
   renderLapTable();
-  const shiftIdx = (pinnedLiveLap && liveLap) || isReplayMode ? lapsWithLive.length - 1 : selectedLapIndex;
   if (visibleChartNames.has('fuel')) {
-    renderShiftAnalysis(lapsWithLive, shiftIdx);
+    renderShiftAnalysis(selectableLaps, targetLapIndex);
   }
 }
 
@@ -310,14 +310,139 @@ function getVisibleChartNames() {
 }
 
 function selectLap(index) {
-  selectedLapIndex = index;
-  pinnedLiveLap = false;
+  selectedTarget = newHistoryTarget(index);
+  saveSelectedTarget();
   updateAllCharts();
 }
 
 function selectLiveLap() {
-  pinnedLiveLap = true;
+  selectedTarget = newLiveTarget();
+  saveSelectedTarget();
   updateAllCharts();
+}
+
+function newLiveTarget() {
+  return { type: 'live', index: -1, key: 'live' };
+}
+
+function newHistoryTarget(index, lap = lapsData[index]) {
+  return { type: 'history', index, key: lapIdentity(lap) };
+}
+
+function normalizeSelectedTarget() {
+  if (selectedTarget.type === 'live') {
+    return;
+  }
+  if (selectedTarget.type === 'history') {
+    const index = findSelectedHistoryIndex();
+    if (index >= 0) {
+      selectedTarget = newHistoryTarget(index);
+      saveSelectedTarget();
+      return;
+    }
+  }
+  if (liveLap) {
+    selectedTarget = newLiveTarget();
+    saveSelectedTarget();
+    return;
+  }
+  if (lapsData.length > 0) {
+    const fallbackIndex = Math.min(Math.max(selectedTarget.index, 0), lapsData.length - 1);
+    selectedTarget = newHistoryTarget(fallbackIndex);
+    saveSelectedTarget();
+    return;
+  }
+  selectedTarget = { type: 'none', index: -1, key: '' };
+  saveSelectedTarget();
+}
+
+function getSelectedLapIndex(selectableLaps) {
+  normalizeSelectedTarget();
+  if (selectableLaps.length === 0) {
+    return -1;
+  }
+  if (selectedTarget.type === 'live' && liveLap) {
+    return selectableLaps.length - 1;
+  }
+  const historyIndex = findSelectedHistoryIndex();
+  if (historyIndex >= 0) {
+    return historyIndex;
+  }
+  return fallbackHistoryIndex();
+}
+
+function loadSelectedTarget() {
+  const saved = localStorage.getItem(SELECTED_TARGET_STORAGE_KEY);
+  if (!saved) {
+    return newLiveTarget();
+  }
+  try {
+    const target = JSON.parse(saved);
+    if (target && target.type === 'live') {
+      return newLiveTarget();
+    }
+    if (target && target.type === 'history') {
+      return {
+        type: 'history',
+        index: Number.isInteger(target.index) ? target.index : -1,
+        key: typeof target.key === 'string' ? target.key : '',
+      };
+    }
+  } catch (error) {
+    console.warn('load selected target failed', error);
+  }
+  return newLiveTarget();
+}
+
+function saveSelectedTarget() {
+  if (selectedTarget.type === 'none') {
+    localStorage.removeItem(SELECTED_TARGET_STORAGE_KEY);
+    return;
+  }
+  localStorage.setItem(SELECTED_TARGET_STORAGE_KEY, JSON.stringify(selectedTarget));
+}
+
+function findSelectedHistoryIndex() {
+  if (selectedTarget.type !== 'history') {
+    return -1;
+  }
+  if (selectedTarget.key) {
+    const keyIndex = lapsData.findIndex(lap => lapIdentity(lap) === selectedTarget.key);
+    if (keyIndex >= 0) {
+      return keyIndex;
+    }
+  }
+  if (selectedTarget.index >= 0 && selectedTarget.index < lapsData.length) {
+    return selectedTarget.index;
+  }
+  return -1;
+}
+
+function isHistoryLapSelected(index) {
+  if (selectedTarget.type === 'history') {
+    return findSelectedHistoryIndex() === index;
+  }
+  return selectedTarget.type === 'live' && !liveLap && fallbackHistoryIndex() === index;
+}
+
+function isLiveLapSelected() {
+  return selectedTarget.type === 'live' && !!liveLap;
+}
+
+function fallbackHistoryIndex() {
+  return lapsData.length > 0 ? 0 : -1;
+}
+
+function lapIdentity(lap) {
+  if (!lap) return '';
+  return [
+    lap.lap_start_timestamp || '',
+    lap.lap_end_timestamp || '',
+    lap.number || '',
+    lap.lap_finish_time || '',
+    lap.car_id || '',
+    lap.circuit_id || '',
+  ].join('|');
 }
 
 function updatePS5Status(isConnected) {
@@ -359,7 +484,7 @@ function renderLapTable() {
     '</tr></thead><tbody>';
 
   const sortedRows = lapsData.map((l, i) => ({ lap: l, idx: i }))
-    .sort((a, b) => (a.lap.number || a.idx + 1) - (b.lap.number || b.idx + 1));
+    .sort(compareLapRowsByTime);
   sortedRows.forEach(({ lap: l, idx: i }) => {
     const diff = l.lap_finish_time - (bestTime || 0);
     const diffStr = diff === 0 ? '--' : (diff > 0 ? '+' + msToTime(diff) : '-' + msToTime(-diff));
@@ -369,14 +494,14 @@ function renderLapTable() {
       if (l.lap_finish_time === bestTime) cls = 'best';
       else if (l.lap_finish_time === worstTime) cls = 'worst';
     }
-    if (i === selectedLapIndex) cls += (cls ? ' ' : '') + 'selected';
+    if (isHistoryLapSelected(i)) cls += (cls ? ' ' : '') + 'selected';
 
     const notes = [];
     if (l.is_pit_lap) notes.push('<span class="badge pit">' + i18n.t('table.pit') + '</span>');
     if (isRankable && l.lap_finish_time === bestTime) notes.push('<span class="badge best">' + i18n.t('table.fastest') + '</span>');
     else if (isRankable && l.lap_finish_time === worstTime) notes.push('<span class="badge worst">' + i18n.t('table.slowest') + '</span>');
     if (refLap && l === refLap) notes.push('<span class="badge ref">' + i18n.t('table.ref') + '</span>');
-    if (i === selectedLapIndex && !pinnedLiveLap && (!refLap || l !== refLap)) {
+    if (isHistoryLapSelected(i)) {
       notes.push('<span class="badge target">' + i18n.t('table.target') + '</span>');
     }
 
@@ -399,8 +524,7 @@ function renderLapTable() {
 
   // Live lap row
   if (liveLap) {
-    const isLiveSelected = pinnedLiveLap;
-    html += `<tr class="live${isLiveSelected ? ' selected' : ''}" onclick="selectLiveLap()">`;
+    html += `<tr class="live${isLiveLapSelected() ? ' selected' : ''}" onclick="selectLiveLap()">`;
     html += '<td>' + i18n.t('status.live') + '</td>';
     const lapSecs = liveLap._lap_ticks / 60;
     html += `<td>${Math.floor(lapSecs / 60)}:${(lapSecs % 60).toFixed(1).padStart(4, '0')}</td>`;
@@ -414,12 +538,21 @@ function renderLapTable() {
     html += `<td>${Math.round((liveLap.throttle_and_brake_ticks || 0) / totalTicks * 100)}</td>`;
     html += `<td>${escapeHTML(lapTrackName(liveLap))}</td>`;
     html += `<td>${currentVehicleModel || '-'}</td>`;
-    html += '<td></td><td></td>';
+    html += '<td>' + (isLiveLapSelected() ? '<span class="badge target">' + i18n.t('table.target') + '</span>' : '') + '</td><td></td>';
     html += '</tr>';
   }
 
   html += '</tbody></table>';
   setLapTableHTML(html);
+}
+
+function compareLapRowsByTime(a, b) {
+  const timeA = a.lap.lap_finish_time > 0 ? a.lap.lap_finish_time : Infinity;
+  const timeB = b.lap.lap_finish_time > 0 ? b.lap.lap_finish_time : Infinity;
+  if (timeA !== timeB) {
+    return timeA - timeB;
+  }
+  return (a.lap.number || a.idx + 1) - (b.lap.number || b.idx + 1);
 }
 
 function setLapTableHTML(html) {
@@ -436,10 +569,28 @@ function lapTrackName(lap) {
 
   const name = lap.circuit_name || lap.circuit_id || '-';
   const variation = lap.circuit_variation || '';
-  if (!variation || variation === name) {
+  const displayVariation = compactCircuitVariation(name, variation);
+  if (!displayVariation || displayVariation === name) {
     return name;
   }
-  return `${name} / ${variation}`;
+  return `${name} / ${displayVariation}`;
+}
+
+function compactCircuitVariation(name, variation) {
+  if (!name || !variation || variation === name) {
+    return variation;
+  }
+
+  const prefix = `${name} - `;
+  if (variation.startsWith(prefix)) {
+    return variation.slice(prefix.length).trim();
+  }
+
+  if (variation.startsWith(name)) {
+    return variation.slice(name.length).replace(/^[-:/(\\\s]+/, '').trim();
+  }
+
+  return variation;
 }
 
 async function fetchJSON(url, options = {}) {

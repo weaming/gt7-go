@@ -261,6 +261,54 @@ func TestLapWithoutPositionDataIsIncomplete(t *testing.T) {
 	}
 }
 
+func TestPitStopLapDetectedBySameLapPositionJump(t *testing.T) {
+	t.Parallel()
+
+	speeds := []float64{80, 75, 30}
+	posX := []float64{0, 1, 25}
+	posY := []float64{0, 0, 0}
+	posZ := []float64{0, 1, 1}
+	lapNums := []int16{2, 2, 2}
+
+	if !isPitStopLap(speeds, posX, posY, posZ, lapNums) {
+		t.Fatal("same-lap position jump was not detected as pit lap")
+	}
+}
+
+func TestPitStopLapIgnoresLapTransitionPositionJump(t *testing.T) {
+	t.Parallel()
+
+	speeds := []float64{80, 75, 30}
+	posX := []float64{0, 1, 25}
+	posY := []float64{0, 0, 0}
+	posZ := []float64{0, 1, 1}
+	lapNums := []int16{2, 2, 3}
+
+	if isPitStopLap(speeds, posX, posY, posZ, lapNums) {
+		t.Fatal("lap-transition position jump was detected as pit lap")
+	}
+}
+
+func TestPitStopLapDoesNotUseLowSpeedStop(t *testing.T) {
+	t.Parallel()
+
+	speeds := make([]float64, 240)
+	posX := make([]float64, 240)
+	posY := make([]float64, 240)
+	posZ := make([]float64, 240)
+	lapNums := make([]int16, 240)
+	for i := range speeds {
+		speeds[i] = 0.5
+		posX[i] = float64(i) * 0.1
+		posZ[i] = float64(i) * 0.1
+		lapNums[i] = 2
+	}
+
+	if isPitStopLap(speeds, posX, posY, posZ, lapNums) {
+		t.Fatal("low-speed stop was detected as pit lap")
+	}
+}
+
 func logCompleteLapPositions(t *testing.T, manager *Manager, lapNumber int16, ticks int) {
 	t.Helper()
 

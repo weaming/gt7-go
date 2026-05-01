@@ -180,7 +180,7 @@ func (m *Manager) finishCurrentLapLocked(lastLapTimeMs int64, fuelAtEnd float64,
 
 	now := time.Now()
 
-	isPitLap := isPitStopLap(cl.dataSpeed)
+	isPitLap := isPitStopLap(cl.dataSpeed, cl.dataPositionX, cl.dataPositionY, cl.dataPositionZ, cl.dataLapNum)
 	isComplete := cl.startsAtTrackStart && isLapComplete(cl.dataPositionX, cl.dataPositionY, cl.dataPositionZ)
 	lap := &models.Lap{
 		Title:                        secondsToLapTime(float64(lastLapTimeMs) / 1000),
@@ -1135,21 +1135,32 @@ func (cl *CurrentLap) TrimToLastLap() int {
 	return splitIdx
 }
 
-func isPitStopLap(speeds []float64) bool {
-	const threshold = 3.0      // km/h
-	const minConsecutive = 180 // ticks = 3 seconds at 60fps
+func isPitStopLap(speeds, posX, posY, posZ []float64, lapNums []int16) bool {
+	const jumpDistanceMeters = 10.0
+	const movingSpeedKPH = 1.0
 
-	consecutive := 0
-	for _, s := range speeds {
-		if s < threshold {
-			consecutive++
-			if consecutive >= minConsecutive {
-				return true
-			}
-		} else {
-			consecutive = 0
+	n := min(len(speeds), len(posX), len(posY), len(posZ))
+	if n < 2 {
+		return false
+	}
+
+	hasLapNums := len(lapNums) >= n
+	for i := 1; i < n; i++ {
+		if hasLapNums && lapNums[i] != lapNums[i-1] {
+			continue
+		}
+		if speeds[i] <= movingSpeedKPH {
+			continue
+		}
+
+		dx := posX[i] - posX[i-1]
+		dy := posY[i] - posY[i-1]
+		dz := posZ[i] - posZ[i-1]
+		if math.Sqrt(dx*dx+dy*dy+dz*dz) > jumpDistanceMeters {
+			return true
 		}
 	}
+
 	return false
 }
 
