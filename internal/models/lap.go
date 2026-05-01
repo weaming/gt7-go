@@ -1,6 +1,10 @@
 package models
 
-import "time"
+import (
+	"encoding/json"
+	"fmt"
+	"time"
+)
 
 type Lap struct {
 	Title         string  `json:"title"`
@@ -54,6 +58,65 @@ type Lap struct {
 
 	LapStartTimestamp *time.Time `json:"lap_start_timestamp"`
 	LapEndTimestamp   *time.Time `json:"lap_end_timestamp"`
+}
+
+func (lap *Lap) UnmarshalJSON(data []byte) error {
+	type lapAlias Lap
+
+	var decoded lapAlias
+	wireLap := struct {
+		*lapAlias
+		LapStartTimestamp json.RawMessage `json:"lap_start_timestamp"`
+		LapEndTimestamp   json.RawMessage `json:"lap_end_timestamp"`
+	}{
+		lapAlias: &decoded,
+	}
+	if err := json.Unmarshal(data, &wireLap); err != nil {
+		return err
+	}
+
+	*lap = Lap(decoded)
+
+	startTimestamp, err := parseLapTimestamp(wireLap.LapStartTimestamp)
+	if err != nil {
+		return fmt.Errorf("parse lap_start_timestamp: %w", err)
+	}
+	endTimestamp, err := parseLapTimestamp(wireLap.LapEndTimestamp)
+	if err != nil {
+		return fmt.Errorf("parse lap_end_timestamp: %w", err)
+	}
+	lap.LapStartTimestamp = startTimestamp
+	lap.LapEndTimestamp = endTimestamp
+	return nil
+}
+
+func parseLapTimestamp(data json.RawMessage) (*time.Time, error) {
+	if len(data) == 0 || string(data) == "null" {
+		return nil, nil
+	}
+
+	var value string
+	if err := json.Unmarshal(data, &value); err != nil {
+		return nil, err
+	}
+	if value == "" {
+		return nil, nil
+	}
+
+	layouts := []string{
+		time.RFC3339Nano,
+		"2006-01-02 15:04:05.999999999",
+		"2006-01-02 15:04:05.999999",
+		"2006-01-02 15:04:05",
+	}
+	for _, layout := range layouts {
+		parsed, err := time.ParseInLocation(layout, value, time.Local)
+		if err == nil {
+			return &parsed, nil
+		}
+	}
+
+	return nil, fmt.Errorf("unsupported timestamp %q", value)
 }
 
 // Session represents a group of laps for a specific track+car combination.

@@ -181,7 +181,7 @@ func (m *Manager) finishCurrentLapLocked(lastLapTimeMs int64, fuelAtEnd float64,
 	now := time.Now()
 
 	isPitLap := isPitStopLap(cl.dataSpeed, cl.dataPositionX, cl.dataPositionY, cl.dataPositionZ, cl.dataLapNum)
-	isComplete := cl.startsAtTrackStart && isLapComplete(cl.dataPositionX, cl.dataPositionY, cl.dataPositionZ)
+	isComplete := isLapComplete(cl.dataPositionX, cl.dataPositionY, cl.dataPositionZ)
 	lap := &models.Lap{
 		Title:                        secondsToLapTime(float64(lastLapTimeMs) / 1000),
 		LapTicks:                     cl.lapTicks,
@@ -707,18 +707,18 @@ func (m *Manager) LoadLapsFromFile(path string) error {
 	if err := json.Unmarshal(data, &laps); err != nil {
 		return fmt.Errorf("unmarshal laps: %w", err)
 	}
-	normalizeLapMetadata(laps)
+	metadataChanged := normalizeLapMetadata(laps)
 	laps, duplicates := deduplicateLaps(laps)
 	m.mu.Lock()
 	m.laps = laps
 	m.rebuildSessions()
 	m.mu.Unlock()
 
-	if duplicates > 0 {
+	if duplicates > 0 || metadataChanged {
 		if err := writeLapsFile(path, laps); err != nil {
-			return fmt.Errorf("rewrite deduplicated laps file: %w", err)
+			return fmt.Errorf("rewrite normalized laps file: %w", err)
 		}
-		log.Printf("loaded %d laps from %s, removed %d duplicates and rewrote file", len(laps), path, duplicates)
+		log.Printf("loaded %d laps from %s, removed %d duplicates, metadataChanged=%v and rewrote file", len(laps), path, duplicates, metadataChanged)
 		return nil
 	}
 
@@ -726,13 +726,19 @@ func (m *Manager) LoadLapsFromFile(path string) error {
 	return nil
 }
 
-func normalizeLapMetadata(laps []*models.Lap) {
+func normalizeLapMetadata(laps []*models.Lap) bool {
+	changed := false
 	for _, lap := range laps {
 		if lap == nil {
 			continue
 		}
-		lap.IsComplete = IsCompleteLap(lap)
+		isComplete := IsCompleteLap(lap)
+		if lap.IsComplete != isComplete {
+			changed = true
+			lap.IsComplete = isComplete
+		}
 	}
+	return changed
 }
 
 // Current lap JSONL persistence

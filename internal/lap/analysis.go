@@ -49,9 +49,6 @@ func IsCompleteLap(lap *models.Lap) bool {
 	if lap == nil || lap.LapFinishTime <= 0 {
 		return false
 	}
-	if !lap.StartsAtTrackStart {
-		return false
-	}
 	if len(lap.DataPositionX) >= 2 && len(lap.DataPositionY) >= 2 && len(lap.DataPositionZ) >= 2 {
 		return isLapComplete(lap.DataPositionX, lap.DataPositionY, lap.DataPositionZ)
 	}

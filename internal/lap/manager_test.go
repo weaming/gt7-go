@@ -83,6 +83,126 @@ func TestLoadLapsFromFileDeduplicatesAndRewrites(t *testing.T) {
 	}
 }
 
+func TestLoadLegacyLapsMarksClosedLapComplete(t *testing.T) {
+	t.Parallel()
+
+	dataPath := filepath.Join(t.TempDir(), "laps.json")
+	data := []byte(`[{
+		"title":"0:32.559",
+		"lap_ticks":1955,
+		"lap_finish_time":32559,
+		"number":4,
+		"data_position_x":[0,100,0.4],
+		"data_position_y":[0,0,0],
+		"data_position_z":[0,100,0.2],
+		"lap_start_timestamp":"2023-07-06T12:46:10Z",
+		"lap_end_timestamp":"2023-07-06T12:46:43Z"
+	}]`)
+	if err := os.WriteFile(dataPath, data, 0644); err != nil {
+		t.Fatalf("write legacy laps file: %v", err)
+	}
+
+	manager := NewManager(nil)
+	if err := manager.LoadLapsFromFile(dataPath); err != nil {
+		t.Fatalf("load laps: %v", err)
+	}
+
+	loadedLaps := manager.GetLaps()
+	if len(loadedLaps) != 1 {
+		t.Fatalf("loaded laps = %d, want 1", len(loadedLaps))
+	}
+	if !loadedLaps[0].IsComplete {
+		t.Fatal("legacy lap is_complete = false, want true")
+	}
+	if !IsRankableLap(loadedLaps[0]) {
+		t.Fatal("legacy closed lap is not rankable")
+	}
+
+	rewrittenData, err := os.ReadFile(dataPath)
+	if err != nil {
+		t.Fatalf("read rewritten legacy laps file: %v", err)
+	}
+	var rewrittenLaps []*models.Lap
+	if err := json.Unmarshal(rewrittenData, &rewrittenLaps); err != nil {
+		t.Fatalf("unmarshal rewritten legacy laps: %v", err)
+	}
+	if len(rewrittenLaps) != 1 || !rewrittenLaps[0].IsComplete {
+		t.Fatalf("rewritten legacy lap is_complete = false, want true")
+	}
+}
+
+func TestLoadLapsMarksClosedLapCompleteWhenTrackStartMissed(t *testing.T) {
+	t.Parallel()
+
+	dataPath := filepath.Join(t.TempDir(), "laps.json")
+	data := []byte(`[{
+		"title":"0:32.559",
+		"lap_ticks":1955,
+		"lap_finish_time":32559,
+		"number":4,
+		"starts_at_track_start":false,
+		"is_complete":true,
+		"data_position_x":[0,100,0.4],
+		"data_position_y":[0,0,0],
+		"data_position_z":[0,100,0.2]
+	}]`)
+	if err := os.WriteFile(dataPath, data, 0644); err != nil {
+		t.Fatalf("write laps file: %v", err)
+	}
+
+	manager := NewManager(nil)
+	if err := manager.LoadLapsFromFile(dataPath); err != nil {
+		t.Fatalf("load laps: %v", err)
+	}
+
+	loadedLaps := manager.GetLaps()
+	if len(loadedLaps) != 1 {
+		t.Fatalf("loaded laps = %d, want 1", len(loadedLaps))
+	}
+	if !loadedLaps[0].IsComplete {
+		t.Fatal("closed lap with missed track start is_complete = false, want true")
+	}
+	if !IsRankableLap(loadedLaps[0]) {
+		t.Fatal("closed lap with missed track start is not rankable")
+	}
+}
+
+func TestLoadBundledLegacyDataRanksLaps(t *testing.T) {
+	t.Parallel()
+
+	manager := NewManager(nil)
+	dataPath := filepath.Join("..", "..", "test_data", "broad_bean_raceway_time_trial_4laps.json")
+	if err := manager.LoadLapsFromFile(dataPath); err != nil {
+		t.Fatalf("load bundled legacy data: %v", err)
+	}
+
+	loadedLaps := manager.GetLaps()
+	if len(loadedLaps) != 4 {
+		t.Fatalf("loaded laps = %d, want 4", len(loadedLaps))
+	}
+
+	var bestLap *models.Lap
+	var worstLap *models.Lap
+	for _, loadedLap := range loadedLaps {
+		if !IsRankableLap(loadedLap) {
+			t.Fatalf("lap %d is not rankable", loadedLap.Number)
+		}
+		if bestLap == nil || loadedLap.LapFinishTime < bestLap.LapFinishTime {
+			bestLap = loadedLap
+		}
+		if worstLap == nil || loadedLap.LapFinishTime > worstLap.LapFinishTime {
+			worstLap = loadedLap
+		}
+	}
+
+	if bestLap.Number != 4 || bestLap.LapFinishTime != 32559 {
+		t.Fatalf("best lap = #%d %d, want #4 32559", bestLap.Number, bestLap.LapFinishTime)
+	}
+	if worstLap.Number != 5 || worstLap.LapFinishTime != 32722 {
+		t.Fatalf("worst lap = #%d %d, want #5 32722", worstLap.Number, worstLap.LapFinishTime)
+	}
+}
+
 func TestClearAllLapDataClearsCurrentAndStoredLaps(t *testing.T) {
 	t.Parallel()
 
@@ -223,7 +343,7 @@ func TestIncompleteLapUsesLastTickDistanceFromStart(t *testing.T) {
 	}
 }
 
-func TestLapStartedAwayFromTrackStartIsIncomplete(t *testing.T) {
+func TestLapStartedAwayFromTrackStartCanBeCompleteWhenClosed(t *testing.T) {
 	t.Parallel()
 
 	manager := NewManager(nil)
@@ -238,11 +358,30 @@ func TestLapStartedAwayFromTrackStartIsIncomplete(t *testing.T) {
 	if lap.StartsAtTrackStart {
 		t.Fatal("starts_at_track_start = true, want false")
 	}
-	if lap.IsComplete {
-		t.Fatal("lap is_complete = true, want false")
+	if !lap.IsComplete {
+		t.Fatal("lap is_complete = false, want true")
 	}
-	if IsRankableLap(lap) {
-		t.Fatal("mid-start lap is rankable")
+	if !IsRankableLap(lap) {
+		t.Fatal("closed lap is not rankable")
+	}
+}
+
+func TestProgrammaticClosedLapWithoutTrackStartFlagIsComplete(t *testing.T) {
+	t.Parallel()
+
+	lap := &models.Lap{
+		LapTicks:      3600,
+		LapFinishTime: 60000,
+		DataPositionX: []float64{0, 10, 0},
+		DataPositionY: []float64{0, 0, 0},
+		DataPositionZ: []float64{0, 10, 0},
+	}
+
+	if !IsCompleteLap(lap) {
+		t.Fatal("programmatic closed lap without track start flag is incomplete")
+	}
+	if !IsRankableLap(lap) {
+		t.Fatal("programmatic closed lap without track start flag is not rankable")
 	}
 }
 

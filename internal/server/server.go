@@ -616,18 +616,8 @@ func isArchiveNameFiller(value string) bool {
 }
 
 func deduplicateArchiveLaps(laps []*models.Lap) ([]*models.Lap, int) {
-	data, err := json.Marshal(laps)
-	if err != nil {
-		return laps, 0
-	}
-
-	var normalized []*models.Lap
-	if err := json.Unmarshal(data, &normalized); err != nil {
-		return laps, 0
-	}
-
 	manager := lap.NewManager(nil)
-	manager.LoadLaps(normalized, true)
+	manager.LoadLaps(laps, true)
 	deduplicated := manager.GetLaps()
 	return deduplicated, len(laps) - len(deduplicated)
 }
