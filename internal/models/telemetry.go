@@ -53,12 +53,14 @@ type TelemetrySnapshot struct {
 	VehicleModel        string `json:"vehicle_model"`
 	VehicleCategory     string `json:"vehicle_category"`
 
-	IsPaused  bool `json:"is_paused"`
-	InRace    bool `json:"in_race"`
-	IsLoading bool `json:"is_loading"`
-	InGear    bool `json:"in_gear"`
-	HasTurbo  bool `json:"has_turbo"`
-	IsReplay  bool `json:"is_replay"`
+	IsPaused       bool `json:"is_paused"`
+	InRace         bool `json:"in_race"`
+	IsLoading      bool `json:"is_loading"`
+	InGear         bool `json:"in_gear"`
+	HasTurbo       bool `json:"has_turbo"`
+	IsReplay       bool `json:"is_replay"`
+	IsRaceComplete bool `json:"is_race_complete"`
+	PS5Connected   bool `json:"ps5_connected"`
 
 	EnergyRecovery float64 `json:"energy_recovery"`
 

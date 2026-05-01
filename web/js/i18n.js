@@ -17,7 +17,7 @@ const i18n = {
     'chart.boost': { zh: '增压值 (bar)', en: 'Boost (bar)' },
     'chart.tires': { zh: '轮胎滑移率', en: 'Tire Slip Ratio' },
     'chart.variance': { zh: '速度方差 (圈间)', en: 'Speed Variance (across laps)' },
-    'chart.raceline': { zh: '赛车线', en: 'Racing Line' },
+    'chart.raceline': { zh: '赛车线（俯视）', en: 'Racing Line (Top View)' },
     'chart.fuel': { zh: '燃油策略', en: 'Fuel Strategy' },
     'chart.corner': { zh: '弯道分析', en: 'Corner Analysis' },
 
@@ -43,6 +43,12 @@ const i18n = {
 
     'status.live': { zh: '实时', en: 'LIVE' },
     'status.disconnected': { zh: '未连接', en: 'Disconnected' },
+    'status.connected': { zh: '已连接', en: 'Connected' },
+    'status.backend': { zh: '网页', en: 'Web' },
+    'status.ps5': { zh: 'PS5', en: 'PS5' },
+    'status.ps5_live': { zh: '上游已连接', en: 'Upstream connected' },
+    'status.ps5_waiting': { zh: '等待上游', en: 'Waiting upstream' },
+    'status.finished': { zh: '已完赛', en: 'FINISHED' },
 
     'misc.theoretical_best': { zh: '理论最佳', en: 'Theoretical Best' },
     'misc.best_lap': { zh: '最佳圈', en: 'Best Lap' },

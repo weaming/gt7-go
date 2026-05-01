@@ -27,7 +27,11 @@ type Engine struct {
 	lastSnapshot  *tmodel.TelemetrySnapshot
 	playstationIP string
 
-	hasConnected bool
+	hasLoggedWaiting   bool
+	hasLoggedConnected bool
+	lastPacketSequence uint32
+	lastPacketAt       time.Time
+	lastStatusSentAt   time.Time
 
 	forceRecord        atomic.Bool
 	liveLapDiffTick    atomic.Int32
@@ -102,19 +106,24 @@ func (e *Engine) snapshotBroadcastLoop(ctx context.Context) {
 func (e *Engine) broadcastSnapshot() {
 	t := e.client.Telemetry
 	if t == nil {
-		if !e.hasConnected {
+		if !e.hasLoggedWaiting {
 			log.Println("telemetry: waiting for PS5 data...")
-			e.hasConnected = true
+			e.hasLoggedWaiting = true
 		}
+		e.maybeBroadcastConnectionStatus(false)
 		return
 	}
 
 	if t.SequenceID() == 0 {
+		e.maybeBroadcastConnectionStatus(false)
 		return
 	}
 
-	if !e.hasConnected {
-		e.hasConnected = true
+	ps5Connected := e.updateConnectionStatus(t.SequenceID())
+	e.maybeBroadcastConnectionStatus(ps5Connected)
+
+	if !e.hasLoggedConnected {
+		e.hasLoggedConnected = true
 		log.Printf("telemetry: connected — seq=%d vehicle=%s lap=%d/%d",
 			t.SequenceID(), t.VehicleModel(), t.CurrentLap(), t.RaceLaps())
 	}
@@ -178,6 +187,8 @@ func (e *Engine) broadcastSnapshot() {
 		InGear:         flags.InGear,
 		HasTurbo:       flags.HasTurbo,
 		EnergyRecovery: float64(t.EnergyRecovery()),
+		IsRaceComplete: t.RaceComplete(),
+		PS5Connected:   ps5Connected,
 
 		SuggestedGear: int(t.SuggestedGear()),
 
@@ -203,14 +214,19 @@ func (e *Engine) broadcastSnapshot() {
 	shouldRecordReplay := e.forceRecord.Load()
 	shouldSaveCompletedLap := !isReplay || shouldRecordReplay
 
-	if !e.lapManager.IsCurrentLapActive() && curLap > 0 {
+	if !e.lapManager.IsCurrentLapActive() && curLap > 0 && !snapshot.IsRaceComplete {
 		e.startNewLap(t, snapshot)
 	}
 
-	hasActiveLap := e.lapManager.IsCurrentLapActive()
+	if !flags.GamePaused && e.lapManager.IsCurrentLapActive() {
+		e.handleLapTransition(t, shouldSaveCompletedLap)
+		if !e.lapManager.IsCurrentLapActive() && curLap > 0 && !snapshot.IsRaceComplete {
+			e.startNewLap(t, snapshot)
+		}
+	}
 
-	// Do not persist telemetry samples while the game is paused.
-	if !flags.GamePaused && hasActiveLap {
+	// Do not persist telemetry samples while the game is paused or after the race is complete.
+	if !flags.GamePaused && !snapshot.IsRaceComplete && e.lapManager.IsCurrentLapActive() {
 		tireTemps := models.CornerSet{
 			FrontLeft:  t.TyreTemperatureCelsius().FrontLeft,
 			FrontRight: t.TyreTemperatureCelsius().FrontRight,
@@ -239,13 +255,6 @@ func (e *Engine) broadcastSnapshot() {
 			curLap,
 		); err != nil {
 			log.Printf("log lap data: %v", err)
-		}
-
-		if curLap != snapshot.TotalLaps {
-			e.handleLapTransition(t, shouldSaveCompletedLap)
-			if !e.lapManager.IsCurrentLapActive() && curLap > 0 {
-				e.startNewLap(t, snapshot)
-			}
 		}
 	}
 	saveTick := e.currentLapSaveTick.Add(1)
@@ -283,11 +292,12 @@ func (e *Engine) broadcastSnapshot() {
 
 func (e *Engine) startNewLap(t *gttelemetry.Transformer, snapshot *tmodel.TelemetrySnapshot) {
 	curLap := snapshot.CurrentLap
-	log.Printf("telemetry: StartNewLap lap=%d seq=%d gameState=%v force=%v", curLap, t.SequenceID(), t.GameState(), e.forceRecord.Load())
+	startsAtTrackStart := e.isAtStartLine(t)
+	log.Printf("telemetry: StartNewLap lap=%d seq=%d gameState=%v force=%v startLine=%v", curLap, t.SequenceID(), t.GameState(), e.forceRecord.Load(), startsAtTrackStart)
 	e.lapManager.StartNewLap(
 		int(t.VehicleID()), int(t.RaceLaps()), int(curLap),
 		float64(t.FuelLevel()), t.VehicleModel(),
-		e.circuitID, e.circuitName, e.circuitVariation,
+		e.circuitID, e.circuitName, e.circuitVariation, startsAtTrackStart,
 	)
 
 	if e.hub.NumClients() > 0 {
@@ -346,6 +356,31 @@ func (e *Engine) detectCircuit(t *gttelemetry.Transformer) {
 	log.Printf("circuit detected: %s (%s - %s)", e.circuitID, e.circuitName, e.circuitVariation)
 }
 
+func (e *Engine) isAtStartLine(t *gttelemetry.Transformer) bool {
+	if e.client == nil || e.client.CircuitDB == nil {
+		return false
+	}
+
+	cid, found := e.client.CircuitDB.GetCircuitAtCoordinate(
+		t.PositionalMapCoordinates(),
+		models.CoordinateTypeStartLine,
+	)
+	if !found {
+		return false
+	}
+
+	if e.circuitID != "" {
+		return cid == e.circuitID
+	}
+
+	e.circuitID = cid
+	if info, ok := e.client.CircuitDB.GetCircuitByID(cid); ok {
+		e.circuitName = info.Name
+		e.circuitVariation = info.Variation
+	}
+	return true
+}
+
 func (e *Engine) handleLapTransition(t *gttelemetry.Transformer, shouldSaveCompleted bool) {
 	curLap := t.CurrentLap()
 
@@ -378,7 +413,7 @@ func (e *Engine) broadcastLapsUpdated() {
 
 	var bestTime int64 = 1<<63 - 1
 	for _, l := range laps {
-		if l.LapFinishTime > 0 && l.LapFinishTime < bestTime {
+		if lap.IsRankableLap(l) && l.LapFinishTime < bestTime {
 			bestTime = l.LapFinishTime
 		}
 	}
@@ -412,4 +447,55 @@ func (e *Engine) GetLastSnapshot() *tmodel.TelemetrySnapshot {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	return e.lastSnapshot
+}
+
+func (e *Engine) GetConnectionStatus() tmodel.TelemetryStatusMessage {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return tmodel.TelemetryStatusMessage{
+		Type:          "telemetry_status",
+		PS5Connected:  e.isConnectionFreshLocked(time.Now()),
+		PlaystationIP: e.playstationIP,
+	}
+}
+
+func (e *Engine) updateConnectionStatus(sequenceID uint32) bool {
+	now := time.Now()
+	e.mu.Lock()
+	if sequenceID != e.lastPacketSequence {
+		e.lastPacketSequence = sequenceID
+		e.lastPacketAt = now
+	}
+	connected := e.isConnectionFreshLocked(now)
+	e.mu.Unlock()
+	return connected
+}
+
+func (e *Engine) maybeBroadcastConnectionStatus(connected bool) {
+	if e.hub.NumClients() == 0 {
+		return
+	}
+
+	now := time.Now()
+	e.mu.Lock()
+	if now.Sub(e.lastStatusSentAt) < time.Second {
+		e.mu.Unlock()
+		return
+	}
+	e.lastStatusSentAt = now
+	status := tmodel.TelemetryStatusMessage{
+		Type:          "telemetry_status",
+		PS5Connected:  connected,
+		PlaystationIP: e.playstationIP,
+	}
+	e.mu.Unlock()
+
+	e.hub.Broadcast(status)
+}
+
+func (e *Engine) isConnectionFreshLocked(now time.Time) bool {
+	if e.lastPacketAt.IsZero() {
+		return false
+	}
+	return now.Sub(e.lastPacketAt) <= 2*time.Second
 }

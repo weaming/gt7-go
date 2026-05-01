@@ -11,6 +11,8 @@ const CHART_UPDATE_INTERVAL = 200;
 let currentVehicleModel = '';
 let gamePaused = false;
 let isReplayMode = false;
+let isRaceComplete = false;
+let lastPS5Connected = null;
 let circuitLength = 0; // meters, 0 = unknown
 
 function initChart(id) {
@@ -138,6 +140,8 @@ ws.on('telemetry', (data) => {
   const snap = data.data || data;
   gamePaused = snap.is_paused || false;
   isReplayMode = snap.is_replay || false;
+  isRaceComplete = snap.is_race_complete || false;
+  updatePS5Status(snap.ps5_connected);
   if (snap.sequence_id && snap.sequence_id === lastTelemetrySequenceID) {
     return;
   }
@@ -152,10 +156,11 @@ ws.on('telemetry', (data) => {
   if (snap.circuit_length) circuitLength = snap.circuit_length;
   const pauseText = gamePaused ? ' [PAUSED]' : '';
   const replayText = isReplayMode ? ' [REPLAY]' : '';
+  const finishText = isRaceComplete ? ' [' + i18n.t('status.finished') + ']' : '';
   document.getElementById('lap-info').textContent =
-    `Lap ${snap.current_lap}/${snap.total_laps}  ${currentVehicleModel}${pauseText}${replayText}`;
+    `Lap ${snap.current_lap}/${snap.total_laps}  ${currentVehicleModel}${pauseText}${replayText}${finishText}`;
 
-  if (gamePaused) return;
+  if (gamePaused || isRaceComplete) return;
 
   if (snap.current_lap !== currentLiveLapNum) {
     liveLap = null;
@@ -220,8 +225,13 @@ ws.on('current_lap_cleared', () => {
   updateAllCharts();
 });
 
+ws.on('telemetry_status', (data) => {
+  updatePS5Status(data.ps5_connected);
+});
+
 ws.on('disconnected', () => {
   document.getElementById('lap-info').textContent = '';
+  updatePS5Status(false, 0);
 });
 
 // Chart registry
@@ -310,6 +320,21 @@ function selectLiveLap() {
   updateAllCharts();
 }
 
+function updatePS5Status(isConnected) {
+  const connected = !!isConnected;
+  if (lastPS5Connected === connected) return;
+  lastPS5Connected = connected;
+
+  const dot = document.getElementById('ps5-status-connected');
+  const text = document.getElementById('ps5-status-text');
+  if (!dot || !text) return;
+
+  dot.className = 'status-dot ' + (connected ? 'green' : 'yellow');
+  text.textContent = connected
+    ? i18n.t('status.ps5_live')
+    : i18n.t('status.ps5_waiting');
+}
+
 // Lap table
 function renderLapTable() {
   if (lapsData.length === 0 && !liveLap) {
@@ -317,7 +342,7 @@ function renderLapTable() {
     return;
   }
 
-  const validLaps = lapsData.filter(l => l.lap_finish_time > 0 && !l.is_pit_lap);
+  const validLaps = lapsData.filter(isRankableLap);
   let bestTime = 0, worstTime = 0;
   if (validLaps.length > 0) {
     bestTime = validLaps.reduce((a, l) => Math.min(a, l.lap_finish_time), Infinity);
@@ -339,8 +364,8 @@ function renderLapTable() {
     const diff = l.lap_finish_time - (bestTime || 0);
     const diffStr = diff === 0 ? '--' : (diff > 0 ? '+' + msToTime(diff) : '-' + msToTime(-diff));
     let cls = '';
-    const isComplete = !l.is_pit_lap && l.lap_finish_time > 0;
-    if (isComplete) {
+    const isRankable = isRankableLap(l);
+    if (isRankable) {
       if (l.lap_finish_time === bestTime) cls = 'best';
       else if (l.lap_finish_time === worstTime) cls = 'worst';
     }
@@ -348,8 +373,8 @@ function renderLapTable() {
 
     const notes = [];
     if (l.is_pit_lap) notes.push('<span class="badge pit">' + i18n.t('table.pit') + '</span>');
-    if (isComplete && l.lap_finish_time === bestTime) notes.push('<span class="badge best">' + i18n.t('table.fastest') + '</span>');
-    else if (isComplete && l.lap_finish_time === worstTime) notes.push('<span class="badge worst">' + i18n.t('table.slowest') + '</span>');
+    if (isRankable && l.lap_finish_time === bestTime) notes.push('<span class="badge best">' + i18n.t('table.fastest') + '</span>');
+    else if (isRankable && l.lap_finish_time === worstTime) notes.push('<span class="badge worst">' + i18n.t('table.slowest') + '</span>');
     if (refLap && l === refLap) notes.push('<span class="badge ref">' + i18n.t('table.ref') + '</span>');
     if (i === selectedLapIndex && !pinnedLiveLap && (!refLap || l !== refLap)) {
       notes.push('<span class="badge target">' + i18n.t('table.target') + '</span>');
@@ -603,10 +628,17 @@ function getBestLap(laps) {
   let best = null;
   let bestTime = Infinity;
   for (const l of laps) {
-    if (l._is_live || l.is_pit_lap || !l.lap_finish_time || l.lap_finish_time <= 0) continue;
+    if (!isRankableLap(l)) continue;
     if (l.lap_finish_time < bestTime) { bestTime = l.lap_finish_time; best = l; }
   }
   return best;
+}
+
+function isRankableLap(lap) {
+  if (!lap || lap._is_live || lap.is_pit_lap || !lap.lap_finish_time || lap.lap_finish_time <= 0) {
+    return false;
+  }
+  return lap.is_complete === true;
 }
 
 function msToTime(ms) {

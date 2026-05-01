@@ -40,10 +40,11 @@ type Lap struct {
 
 	TotalDistance float64 `json:"total_distance"`
 
-	IsReplay   bool `json:"is_replay"`
-	IsManual   bool `json:"is_manual"`
-	IsPitLap   bool `json:"is_pit_lap"`
-	IsComplete bool `json:"is_complete"`
+	IsReplay           bool `json:"is_replay"`
+	IsManual           bool `json:"is_manual"`
+	IsPitLap           bool `json:"is_pit_lap"`
+	IsComplete         bool `json:"is_complete"`
+	StartsAtTrackStart bool `json:"starts_at_track_start"`
 
 	TimeDiff *TimeDiffResult `json:"time_diff,omitempty"`
 

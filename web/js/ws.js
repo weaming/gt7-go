@@ -13,13 +13,13 @@ class WSClient {
 
     this.ws.onopen = () => {
       document.getElementById('status-connected').className = 'status-dot green';
-      document.getElementById('status-text').textContent = 'Connected';
+      document.getElementById('status-text').textContent = i18n.t('status.connected');
       this.emit('connected');
     };
 
     this.ws.onclose = () => {
       document.getElementById('status-connected').className = 'status-dot red';
-      document.getElementById('status-text').textContent = 'Disconnected';
+      document.getElementById('status-text').textContent = i18n.t('status.disconnected');
       this.emit('disconnected');
       this.reconnectTimer = setTimeout(() => this.connect(), 3000);
     };

@@ -40,7 +40,7 @@ func wsHandler(h *hub.Hub, lapMgr *lap.Manager, engine *telemetry.Engine) http.H
 		laps := lapMgr.GetLaps()
 		var bestTime int64
 		for _, l := range laps {
-			if l.LapFinishTime > 0 && (bestTime == 0 || l.LapFinishTime < bestTime) {
+			if lap.IsRankableLap(l) && (bestTime == 0 || l.LapFinishTime < bestTime) {
 				bestTime = l.LapFinishTime
 			}
 		}
@@ -50,6 +50,14 @@ func wsHandler(h *hub.Hub, lapMgr *lap.Manager, engine *telemetry.Engine) http.H
 			Laps:     laps,
 			BestTime: bestTime,
 		})
+		if msg != nil {
+			select {
+			case client.Send <- msg:
+			default:
+			}
+		}
+
+		msg, _ = json.Marshal(engine.GetConnectionStatus())
 		if msg != nil {
 			select {
 			case client.Send <- msg:

@@ -57,8 +57,8 @@ registerChart('corner-track', {
     }
 
     // Use best lap position data for track outline
-    const best = getBestLap(laps) || laps.slice().sort((a, b) => a.lap_finish_time - b.lap_finish_time)[0];
-    if (!best.data_position_x || !best.data_position_z) return;
+    const best = getBestLap(laps);
+    if (!best || !best.data_position_x || !best.data_position_z) return;
 
     const posX = best.data_position_x;
     const posZ = best.data_position_z;
@@ -172,7 +172,11 @@ registerChart('corner', {
     }
 
     const totalGain = result.corners.reduce((s, c) => s + c.timeLost, 0);
-    const bestLap = getBestLap(laps) || laps.slice().sort((a, b) => a.lap_finish_time - b.lap_finish_time)[0];
+    const bestLap = getBestLap(laps);
+    if (!bestLap) {
+      chart.setOption({ series: [{ data: [] }], graphic: [] });
+      return;
+    }
 
     // Summary text
     const summaryText = i18n.t('misc.best_lap') + ': ' + msToTime(bestLap.lap_finish_time)
@@ -274,7 +278,7 @@ function cornerTimeLoss(laps, idx) {
     return targetCornerTimeLoss(referenceLap, targetLap);
   }
 
-  const filtered = laps.filter(l => !l._is_live && l.lap_finish_time > 0 && l.data_speed && l.data_speed.length > 0)
+  const filtered = laps.filter(l => isRankableLap(l) && l.data_speed && l.data_speed.length > 0)
     .sort((a, b) => a.lap_finish_time - b.lap_finish_time);
   if (filtered.length < 2) return null;
 

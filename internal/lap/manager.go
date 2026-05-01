@@ -70,6 +70,7 @@ type CurrentLap struct {
 	dataAbsoluteYawRatePerSecond []float64
 	rotationYawHistory           []float64
 	carName                      string
+	startsAtTrackStart           bool
 
 	circuitID        string
 	circuitName      string
@@ -77,15 +78,16 @@ type CurrentLap struct {
 }
 
 type currentLapHeader struct {
-	StartTime        time.Time `json:"start"`
-	FuelAtStart      int       `json:"fuel"`
-	TotalLaps        int       `json:"laps"`
-	Number           int       `json:"num"`
-	CarID            int       `json:"car"`
-	CarName          string    `json:"car_name,omitempty"`
-	CircuitID        string    `json:"circuit_id,omitempty"`
-	CircuitName      string    `json:"circuit_name,omitempty"`
-	CircuitVariation string    `json:"circuit_variation,omitempty"`
+	StartTime          time.Time `json:"start"`
+	FuelAtStart        int       `json:"fuel"`
+	TotalLaps          int       `json:"laps"`
+	Number             int       `json:"num"`
+	CarID              int       `json:"car"`
+	CarName            string    `json:"car_name,omitempty"`
+	CircuitID          string    `json:"circuit_id,omitempty"`
+	CircuitName        string    `json:"circuit_name,omitempty"`
+	CircuitVariation   string    `json:"circuit_variation,omitempty"`
+	StartsAtTrackStart bool      `json:"starts_at_track_start,omitempty"`
 }
 
 type currentLapLine struct {
@@ -113,18 +115,19 @@ func NewManager(onLapCompleted func(lap *models.Lap)) *Manager {
 	}
 }
 
-func (m *Manager) StartNewLap(carID int, totalLaps int, lapNumber int, fuel float64, carName, circuitID, circuitName, circuitVariation string) {
+func (m *Manager) StartNewLap(carID int, totalLaps int, lapNumber int, fuel float64, carName, circuitID, circuitName, circuitVariation string, startsAtTrackStart bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	m.currentLap = &CurrentLap{
-		startTime:   time.Now(),
-		fuelAtStart: int(fuel),
-		lapTicks:    0,
-		totalLaps:   totalLaps,
-		number:      lapNumber,
-		carID:       carID,
-		carName:     carName,
+		startTime:          time.Now(),
+		fuelAtStart:        int(fuel),
+		lapTicks:           0,
+		totalLaps:          totalLaps,
+		number:             lapNumber,
+		carID:              carID,
+		carName:            carName,
+		startsAtTrackStart: startsAtTrackStart,
 
 		circuitID:        circuitID,
 		circuitName:      circuitName,
@@ -178,7 +181,7 @@ func (m *Manager) finishCurrentLapLocked(lastLapTimeMs int64, fuelAtEnd float64,
 	now := time.Now()
 
 	isPitLap := isPitStopLap(cl.dataSpeed)
-	isComplete := isLapComplete(cl.dataPositionX, cl.dataPositionY, cl.dataPositionZ)
+	isComplete := cl.startsAtTrackStart && isLapComplete(cl.dataPositionX, cl.dataPositionY, cl.dataPositionZ)
 	lap := &models.Lap{
 		Title:                        secondsToLapTime(float64(lastLapTimeMs) / 1000),
 		LapTicks:                     cl.lapTicks,
@@ -217,6 +220,7 @@ func (m *Manager) finishCurrentLapLocked(lastLapTimeMs int64, fuelAtEnd float64,
 		CircuitVariation:             cl.circuitVariation,
 		IsPitLap:                     isPitLap,
 		IsComplete:                   isComplete,
+		StartsAtTrackStart:           cl.startsAtTrackStart,
 		LapStartTimestamp:            &cl.startTime,
 		LapEndTimestamp:              &now,
 	}
@@ -509,7 +513,7 @@ func (m *Manager) addLapToSession(lap *models.Lap) {
 		m.sessions[key] = s
 	}
 	s.Laps = append([]*models.Lap{lap}, s.Laps...)
-	if lap.LapFinishTime > 0 && (s.BestTime == 0 || lap.LapFinishTime < s.BestTime) {
+	if IsRankableLap(lap) && (s.BestTime == 0 || lap.LapFinishTime < s.BestTime) {
 		s.BestTime = lap.LapFinishTime
 	}
 }
@@ -524,6 +528,7 @@ func (m *Manager) rebuildSessions() {
 func (m *Manager) LoadLaps(laps []*models.Lap, replace bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	normalizeLapMetadata(laps)
 	if replace {
 		m.laps, _ = deduplicateLaps(laps)
 	} else {
@@ -702,6 +707,7 @@ func (m *Manager) LoadLapsFromFile(path string) error {
 	if err := json.Unmarshal(data, &laps); err != nil {
 		return fmt.Errorf("unmarshal laps: %w", err)
 	}
+	normalizeLapMetadata(laps)
 	laps, duplicates := deduplicateLaps(laps)
 	m.mu.Lock()
 	m.laps = laps
@@ -718,6 +724,15 @@ func (m *Manager) LoadLapsFromFile(path string) error {
 
 	log.Printf("loaded %d laps from %s", len(laps), path)
 	return nil
+}
+
+func normalizeLapMetadata(laps []*models.Lap) {
+	for _, lap := range laps {
+		if lap == nil {
+			continue
+		}
+		lap.IsComplete = IsCompleteLap(lap)
+	}
 }
 
 // Current lap JSONL persistence
@@ -776,15 +791,16 @@ func (m *Manager) writeCurrentLapHeader() error {
 		return nil
 	}
 	h := currentLapHeader{
-		StartTime:        m.currentLap.startTime,
-		FuelAtStart:      m.currentLap.fuelAtStart,
-		TotalLaps:        m.currentLap.totalLaps,
-		Number:           m.currentLap.number,
-		CarID:            m.currentLap.carID,
-		CarName:          m.currentLap.carName,
-		CircuitID:        m.currentLap.circuitID,
-		CircuitName:      m.currentLap.circuitName,
-		CircuitVariation: m.currentLap.circuitVariation,
+		StartTime:          m.currentLap.startTime,
+		FuelAtStart:        m.currentLap.fuelAtStart,
+		TotalLaps:          m.currentLap.totalLaps,
+		Number:             m.currentLap.number,
+		CarID:              m.currentLap.carID,
+		CarName:            m.currentLap.carName,
+		CircuitID:          m.currentLap.circuitID,
+		CircuitName:        m.currentLap.circuitName,
+		CircuitVariation:   m.currentLap.circuitVariation,
+		StartsAtTrackStart: m.currentLap.startsAtTrackStart,
 	}
 	data, err := json.Marshal(h)
 	if err != nil {
@@ -803,6 +819,9 @@ func (m *Manager) appendCurrentLapLine(speed, throttle, brake float64, rpm float
 	tireRatios []float64, boost float64, yaw float64,
 	posX, posY, posZ float64, tyreTemps []float64, lapNum int16) error {
 
+	if m.currentLapSavePath == "" {
+		return nil
+	}
 	if m.currentLapBuf == nil {
 		if err := m.openCurrentLapFile(); err != nil {
 			return err
@@ -888,6 +907,7 @@ func (m *Manager) GetCurrentLapState() *models.CurrentLapState {
 		CircuitID:                    cl.circuitID,
 		CircuitName:                  cl.circuitName,
 		CircuitVariation:             cl.circuitVariation,
+		StartsAtTrackStart:           cl.startsAtTrackStart,
 	}
 	return state
 }
@@ -952,6 +972,7 @@ func parseCurrentLapJSONL(f *os.File) (*CurrentLap, error) {
 		cl.circuitID = h.CircuitID
 		cl.circuitName = h.CircuitName
 		cl.circuitVariation = h.CircuitVariation
+		cl.startsAtTrackStart = h.StartsAtTrackStart
 	}
 
 	for _, line := range lines {
@@ -1134,12 +1155,19 @@ func isPitStopLap(speeds []float64) bool {
 
 func isLapComplete(posX, posY, posZ []float64) bool {
 	// A complete lap ends near where it started (close to the start/finish line).
-	if len(posX) < 2 {
+	n := len(posX)
+	if len(posY) < n {
+		n = len(posY)
+	}
+	if len(posZ) < n {
+		n = len(posZ)
+	}
+	if n < 2 {
 		return false
 	}
-	dx := posX[len(posX)-1] - posX[0]
-	dy := posY[len(posY)-1] - posY[0]
-	dz := posZ[len(posZ)-1] - posZ[0]
+	dx := posX[n-1] - posX[0]
+	dy := posY[n-1] - posY[0]
+	dz := posZ[n-1] - posZ[0]
 	dist := math.Sqrt(dx*dx + dy*dy + dz*dz)
 	return dist < 30 // meters from start point
 }

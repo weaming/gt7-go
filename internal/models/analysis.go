@@ -77,6 +77,12 @@ type TelemetryMessage struct {
 	Data *TelemetrySnapshot `json:"data"`
 }
 
+type TelemetryStatusMessage struct {
+	Type          string `json:"type"`
+	PS5Connected  bool   `json:"ps5_connected"`
+	PlaystationIP string `json:"playstation_ip,omitempty"`
+}
+
 type LapCompletedMessage struct {
 	Type     string       `json:"type"`
 	Data     *Lap         `json:"lap"`
@@ -130,6 +136,7 @@ type CurrentLapState struct {
 	CircuitID                    string          `json:"circuit_id,omitempty"`
 	CircuitName                  string          `json:"circuit_name,omitempty"`
 	CircuitVariation             string          `json:"circuit_variation,omitempty"`
+	StartsAtTrackStart           bool            `json:"starts_at_track_start"`
 	TimeDiff                     *TimeDiffResult `json:"time_diff,omitempty"`
 }
 

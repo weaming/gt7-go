@@ -131,7 +131,7 @@ func (s *Server) lapsUpdatedMessage() models.LapsUpdatedMessage {
 
 	var bestTime int64 = 1<<63 - 1
 	for _, l := range laps {
-		if l.LapFinishTime > 0 && l.LapFinishTime < bestTime {
+		if lap.IsRankableLap(l) && l.LapFinishTime < bestTime {
 			bestTime = l.LapFinishTime
 		}
 	}

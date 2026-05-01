@@ -30,7 +30,7 @@ registerChart('raceline', {
     let bestLap = null;
     let bestTime = Infinity;
     for (const l of laps) {
-      if (l._is_live || !l.lap_finish_time || l.lap_finish_time <= 0) continue;
+      if (!isRankableLap(l)) continue;
       if (l.lap_finish_time < bestTime) { bestTime = l.lap_finish_time; bestLap = l; }
     }
 

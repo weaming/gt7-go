@@ -4,6 +4,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 #header { display: flex; align-items: center; gap: 20px; margin-bottom: 10px; }
 #header h1 { font-size: 20px; color: #e94560; }
 #status-bar { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #aaa; }
+.status-label { color: #777; font-size: 11px; }
+.status-divider { width: 1px; height: 14px; background: #333; display: inline-block; }
 #header-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; position: relative; flex-wrap: nowrap; }
 #lang-toggle, #lap-data-tools button {
   background: #16213e;

@@ -13,7 +13,7 @@ func ComputeAllTimeDiffs(laps []*models.Lap) {
 	var best *models.Lap
 	var bestTime int64 = 1<<63 - 1
 	for _, l := range laps {
-		if l.LapFinishTime > 0 && l.LapFinishTime < bestTime {
+		if IsRankableLap(l) && l.LapFinishTime < bestTime {
 			bestTime = l.LapFinishTime
 			best = l
 		}
@@ -26,12 +26,36 @@ func ComputeAllTimeDiffs(laps []*models.Lap) {
 			l.TimeDiff = nil
 			continue
 		}
+		if !IsCompleteLap(l) {
+			l.TimeDiff = nil
+			continue
+		}
 		if len(l.DataPositionX) < 2 || len(l.DataPositionZ) < 2 {
 			l.TimeDiff = nil
 			continue
 		}
 		l.TimeDiff = ComputeTimeDiff(best, l)
 	}
+}
+
+func IsRankableLap(lap *models.Lap) bool {
+	if lap == nil || lap.IsPitLap || lap.LapFinishTime <= 0 {
+		return false
+	}
+	return IsCompleteLap(lap)
+}
+
+func IsCompleteLap(lap *models.Lap) bool {
+	if lap == nil || lap.LapFinishTime <= 0 {
+		return false
+	}
+	if !lap.StartsAtTrackStart {
+		return false
+	}
+	if len(lap.DataPositionX) >= 2 && len(lap.DataPositionY) >= 2 && len(lap.DataPositionZ) >= 2 {
+		return isLapComplete(lap.DataPositionX, lap.DataPositionY, lap.DataPositionZ)
+	}
+	return false
 }
 
 // ComputeTimeDiff computes the time difference between a comparison lap and
