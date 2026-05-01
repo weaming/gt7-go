@@ -692,10 +692,11 @@ function renderDriverDashboard() {
   const renderTyreSlip = (id, slip) => {
     const el = document.getElementById(id);
     if (!el) return;
-    if (hasTelemetry && Number.isFinite(slip) && slip >= 0) {
-      const slipText = formatWheelTireSlip(slip);
+    if (hasTelemetry && Number.isFinite(slip)) {
+      const absSlip = Math.abs(slip);
+      const slipText = formatWheelTireSlip(absSlip);
       el.textContent = slipText || '\u00a0';
-      el.style.color = slipText ? tireSlipColor(slip) : '';
+      el.style.color = slipText ? tireSlipColor(absSlip) : '';
     } else {
       el.textContent = '--';
       el.style.color = '';
@@ -868,9 +869,7 @@ function formatTireSlip(value) {
 
 function formatWheelTireSlip(value) {
   if (value == null || !Number.isFinite(value)) return '--';
-  const percent = Math.round(value * 100);
-  if (percent === 0) return '';
-  return percent + '%';
+  return (value * 100).toFixed(1) + '%';
 }
 
 function tireSlipColor(value) {
