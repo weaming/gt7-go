@@ -662,8 +662,9 @@ function renderDriverDashboard() {
     const el = document.getElementById(id);
     if (!el) return;
     if (hasTelemetry && Number.isFinite(slip) && slip >= 0) {
-      el.textContent = formatTireSlip(slip);
-      el.style.color = tireSlipColor(slip);
+      const slipText = formatWheelTireSlip(slip);
+      el.textContent = slipText;
+      el.style.color = slipText ? tireSlipColor(slip) : '';
     } else {
       el.textContent = '--';
       el.style.color = '';
@@ -763,6 +764,13 @@ function formatFuel(fuel, capacity) {
 function formatTireSlip(value) {
   if (value == null || !Number.isFinite(value)) return '--';
   return (value * 100).toFixed(1) + '%';
+}
+
+function formatWheelTireSlip(value) {
+  if (value == null || !Number.isFinite(value)) return '--';
+  const percent = Math.round(value * 100);
+  if (percent === 0) return '';
+  return percent + '%';
 }
 
 function tireSlipColor(value) {
