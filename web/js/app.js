@@ -547,12 +547,26 @@ function renderLapTable() {
 }
 
 function compareLapRowsByTime(a, b) {
-  const timeA = a.lap.lap_finish_time > 0 ? a.lap.lap_finish_time : Infinity;
-  const timeB = b.lap.lap_finish_time > 0 ? b.lap.lap_finish_time : Infinity;
-  if (timeA !== timeB) {
-    return timeA - timeB;
+  const timestampA = lapSortTimestamp(a.lap);
+  const timestampB = lapSortTimestamp(b.lap);
+  if (timestampA !== timestampB) {
+    return timestampA - timestampB;
   }
   return (a.lap.number || a.idx + 1) - (b.lap.number || b.idx + 1);
+}
+
+function lapSortTimestamp(lap) {
+  const endTimestamp = Date.parse(lap.lap_end_timestamp || '');
+  if (Number.isFinite(endTimestamp)) {
+    return endTimestamp;
+  }
+
+  const startTimestamp = Date.parse(lap.lap_start_timestamp || '');
+  if (Number.isFinite(startTimestamp)) {
+    return startTimestamp;
+  }
+
+  return Infinity;
 }
 
 function setLapTableHTML(html) {
