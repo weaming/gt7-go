@@ -29,7 +29,7 @@ const i18n = {
     'table.brk': { zh: '刹%', en: 'Brk%' },
     'table.cst': { zh: '滑%', en: 'Cst%' },
     'table.spin': { zh: '滑移%', en: 'Spin%' },
-    'table.tb': { zh: '油刹%', en: 'TB%' },
+    'table.tb': { zh: '油刹重叠%', en: 'Overlap%' },
     'table.track': { zh: '赛道', en: 'Track' },
     'table.car': { zh: '车辆', en: 'Car' },
     'table.note': { zh: '备注', en: 'Notes' },
