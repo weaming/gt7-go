@@ -3,6 +3,7 @@ package models
 type TelemetrySnapshot struct {
 	Speed         float64 `json:"speed"`
 	RPM           float64 `json:"rpm"`
+	RPMMax        float64 `json:"rpm_max"`
 	Gear          int     `json:"gear"`
 	SuggestedGear int     `json:"suggested_gear"`
 	Throttle      float64 `json:"throttle"`

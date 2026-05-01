@@ -138,6 +138,7 @@ func (e *Engine) broadcastSnapshot() {
 	snapshot := &tmodel.TelemetrySnapshot{
 		Speed:        float64(t.GroundSpeedMetresPerSecond()) * 3.6,
 		RPM:          float64(t.EngineRPM()),
+		RPMMax:       float64(t.EngineRPMLight().Max),
 		Gear:         int(t.CurrentGear()),
 		Throttle:     float64(t.ThrottleOutputPercent()),
 		Brake:        float64(t.BrakeInputPercent()),

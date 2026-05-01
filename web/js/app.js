@@ -605,9 +605,13 @@ function renderDriverDashboard() {
   setText('driver-gear-value', gear);
   setText('driver-suggested-gear', hasTelemetry ? suggestedGear : '--');
 
-  const rpmScale = rpmScaleMax(snap.rpm || 0);
+  const rpmScale = rpmScaleMax();
   const rpmPercent = rpmScale > 0 ? (snap.rpm || 0) / rpmScale * 100 : 0;
-  setHeightPercent('driver-rpm-fill', clampPercent(rpmPercent), 'width');
+  const rpmEl = document.getElementById('driver-rpm-fill');
+  if (rpmEl) {
+    rpmEl.style.left = `${clampPercent(rpmPercent)}%`;
+  }
+  setText('driver-rpm-max', ' / ' + Math.round(rpmScale));
 
   const throttle = clampPercent(snap.throttle || 0);
   const brake = clampPercent(snap.brake || 0);
@@ -653,10 +657,10 @@ function setTemperatureColor(id, temp, hasTelemetry) {
 
 function tireTemperatureColor(temp) {
   // Green -> Yellow -> Red with smooth gradient
-  // Below 60: green, 60-80: green->yellow, 80-90: yellow->red, 90+: red
+  // Below 70: green, 70-80: green->yellow, 80-90: yellow->red, 90+: red
   if (temp >= 90) return '#e94560';
   if (temp >= 80) return lerpColor('#f6c85f', '#e94560', (temp - 80) / 10);
-  if (temp >= 60) return lerpColor('#19c37d', '#f6c85f', (temp - 60) / 20);
+  if (temp >= 70) return lerpColor('#19c37d', '#f6c85f', (temp - 70) / 10);
   return '#19c37d';
 }
 
@@ -741,13 +745,17 @@ function clampPercent(value) {
   return Math.min(100, Math.max(0, value));
 }
 
-function rpmScaleMax(currentRpm) {
-  let maxRPM = currentRpm || 0;
-  const selectableLaps = getSelectableLaps();
-  for (const lap of selectableLaps) {
-    if (!lap || !lap.data_rpm) continue;
-    for (const value of lap.data_rpm) {
-      if (value > maxRPM) maxRPM = value;
+function rpmScaleMax() {
+  let maxRPM = 8000;
+  if (latestTelemetrySnapshot && latestTelemetrySnapshot.rpm_max > 0) {
+    maxRPM = latestTelemetrySnapshot.rpm_max;
+  } else {
+    const selectableLaps = getSelectableLaps();
+    for (const lap of selectableLaps) {
+      if (!lap || !lap.data_rpm) continue;
+      for (const value of lap.data_rpm) {
+        if (value > maxRPM) maxRPM = value;
+      }
     }
   }
   const rounded = Math.ceil(maxRPM / 1000) * 1000;

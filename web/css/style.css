@@ -65,7 +65,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 
 .driver-dashboard {
   display: grid;
-  grid-template-columns: minmax(280px, 1.2fr) minmax(120px, 0.35fr) minmax(320px, 1fr);
+  grid-template-columns: minmax(280px, 1.2fr) minmax(160px, 0.4fr) minmax(320px, 1fr);
   grid-template-areas:
     "primary controls grid"
     "tyres controls grid";
@@ -81,7 +81,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
   border-radius: 6px;
 }
 .driver-primary { grid-area: primary; padding: 18px; display: grid; grid-template-columns: 1fr 150px; gap: 16px; align-items: stretch; }
-.driver-controls { grid-area: controls; padding: 16px 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.driver-controls { grid-area: controls; padding: 16px 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .driver-grid { grid-area: grid; display: grid; grid-template-columns: repeat(2, minmax(150px, 1fr)); gap: 1px; background: #293348; overflow: hidden; }
 .driver-tyres { grid-area: tyres; padding: 14px; display: grid; grid-template-columns: repeat(2, minmax(90px, 1fr)); gap: 10px; }
 .driver-label { color: #8a95aa; font-size: 12px; text-transform: uppercase; }
@@ -101,14 +101,15 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .driver-subvalue { margin-top: 8px; color: #9aa8bf; font-size: 13px; min-height: 18px; }
 .driver-rpm { grid-column: 1 / -1; align-self: end; }
 .driver-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 7px; color: #d8e1f0; font-variant-numeric: tabular-nums; }
-.driver-rpm-bar { height: 18px; background: #202a3a; border-radius: 4px; overflow: hidden; }
-.driver-rpm-bar div { height: 100%; width: 0; background: linear-gradient(90deg, #19c37d 0%, #f6c85f 68%, #e94560 100%); transition: width 100ms linear; }
-.driver-pedal { display: grid; grid-template-rows: 1fr auto auto; gap: 8px; justify-items: center; min-height: 360px; }
-.driver-pedal-track { position: relative; width: 42px; height: 100%; min-height: 260px; background: #202a3a; border-radius: 5px; overflow: hidden; }
+.driver-rpm-bar { height: 18px; background: linear-gradient(90deg, #19c37d 0%, #f6c85f 68%, #e94560 100%); border-radius: 4px; overflow: hidden; position: relative; }
+.driver-rpm-bar div { position: absolute; top: 0; right: 0; height: 100%; background: #202a3a; transition: left 100ms linear; }
+.driver-pedal { display: flex; flex-direction: column; align-items: center; gap: 8px; min-height: 360px; min-width: 70px; box-sizing: border-box; }
+.driver-pedal-track { position: relative; width: 42px; flex: 1; min-height: 260px; background: #202a3a; border-radius: 5px; overflow: hidden; align-self: center; }
+.driver-pedal-value { color: #f2f7ff; font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.driver-label { text-align: center; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .driver-pedal-track div { position: absolute; left: 0; bottom: 0; width: 100%; height: 0; transition: height 100ms linear; }
 .driver-pedal-track.throttle div { background: #19c37d; }
 .driver-pedal-track.brake div { background: #e94560; }
-.driver-pedal-value { color: #f2f7ff; font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .driver-metric { background: #101725; padding: 14px; min-height: 84px; display: flex; flex-direction: column; justify-content: center; gap: 8px; }
 .driver-metric strong { color: #f2f7ff; font-size: 24px; line-height: 1.05; font-variant-numeric: tabular-nums; }
 .driver-metric strong.gain { color: #19c37d; }
@@ -173,7 +174,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
   #tab-driver.active { gap: 0; min-height: auto; }
   #tab-driver .lap-table { display: none; }
   .driver-dashboard {
-    grid-template-columns: minmax(0, 1fr) 76px;
+    grid-template-columns: minmax(0, 1fr) 140px;
     grid-template-areas:
       "primary controls"
       "grid grid"
@@ -206,8 +207,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
     gap: 6px;
     min-height: 168px;
   }
-  .driver-pedal { min-height: 144px; gap: 4px; }
-  .driver-pedal-track { width: 26px; min-height: 104px; }
+  .driver-pedal { min-height: 144px; gap: 4px; padding-top: 6px; min-width: 55px; }
+  .driver-pedal-track { width: 26px; flex: 1; min-height: 104px; }
   .driver-pedal-value { font-size: 13px; }
   .driver-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .driver-metric { min-height: 38px; padding: 5px 8px; gap: 3px; }
