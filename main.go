@@ -30,7 +30,6 @@ func main() {
 	}
 	defaultData := filepath.Join(homeDir, ".gt7", "data")
 	dataDir := flag.String("data", defaultData, "Data directory for recordings and cache")
-	webDir := flag.String("web", "web", "Web frontend directory")
 	flag.Parse()
 
 	if err := os.MkdirAll(*dataDir, 0755); err != nil {
@@ -83,7 +82,8 @@ func main() {
 
 	rec := recorder.New(telem.GetClient(), *dataDir)
 
-	srv := server.New(h, lapMgr, telem, rec, fwd, *webDir, *dataDir)
+	var srv server.ServerInterface
+	srv = server.New(h, lapMgr, telem, rec, fwd, *dataDir)
 
 	httpServer := &http.Server{
 		Addr:    *addr,

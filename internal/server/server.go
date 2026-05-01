@@ -1,8 +1,10 @@
 package server
 
 import (
+	"embed"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -20,6 +22,11 @@ import (
 	"github.com/weaming/gt7-go/internal/telemetry"
 )
 
+//go:generate cp -r ../../web ./web
+
+//go:embed web
+var embeddedWeb embed.FS
+
 type Server struct {
 	mux        *http.ServeMux
 	hub        *hub.Hub
@@ -27,8 +34,11 @@ type Server struct {
 	telemetry  *telemetry.Engine
 	recorder   *recorder.Recorder
 	forwarder  *forwarder.Forwarder
-	webDir     string
 	dataDir    string
+}
+
+type ServerInterface interface {
+	http.Handler
 }
 
 type lapArchive struct {
@@ -40,10 +50,10 @@ type lapArchive struct {
 
 type lapFileInfo struct {
 	Filename  string    `json:"filename"`
-	Label     string    `json:"label"`
-	SavedAt   time.Time `json:"saved_at"`
+	Label    string    `json:"label"`
+	SavedAt  time.Time `json:"saved_at"`
 	UpdatedAt time.Time `json:"updated_at"`
-	LapCount  int       `json:"lap_count"`
+	LapCount int       `json:"lap_count"`
 }
 
 func New(
@@ -52,7 +62,7 @@ func New(
 	telem *telemetry.Engine,
 	rec *recorder.Recorder,
 	fwd *forwarder.Forwarder,
-	webDir, dataDir string,
+	dataDir string,
 ) *Server {
 	s := &Server{
 		mux:        http.NewServeMux(),
@@ -61,7 +71,6 @@ func New(
 		telemetry:  telem,
 		recorder:   rec,
 		forwarder:  fwd,
-		webDir:     webDir,
 		dataDir:    dataDir,
 	}
 	s.registerRoutes()
@@ -90,7 +99,8 @@ func (s *Server) registerRoutes() {
 	s.mux.Handle("GET /api/forwarder/status", jsonHandler(s.getForwarderStatus))
 	s.mux.Handle("GET /ws", wsHandler(s.hub, s.lapManager, s.telemetry))
 
-	fileServer := http.FileServer(http.Dir(s.webDir))
+	sub, _ := fs.Sub(embeddedWeb, "web")
+	fileServer := http.FileServer(http.FS(sub))
 	s.mux.Handle("GET /", fileServer)
 }
 
@@ -372,7 +382,7 @@ func (s *Server) removeRenamedLapArchives(archive lapArchive, keepFilename strin
 		return fmt.Errorf("read lap archive dir: %w", err)
 	}
 
-	archiveTrackName, archiveCarName := archiveNameParts(archive.Laps)
+	archiveTrackName, _ := archiveNameParts(archive.Laps)
 	for _, entry := range entries {
 		if entry.IsDir() || entry.Name() == keepFilename || !strings.HasSuffix(entry.Name(), ".json") {
 			continue
@@ -382,8 +392,8 @@ func (s *Server) removeRenamedLapArchives(archive lapArchive, keepFilename strin
 		if err != nil {
 			continue
 		}
-		existingTrackName, existingCarName := archiveNameParts(existingArchive.Laps)
-		if !existingArchive.SavedAt.Equal(archive.SavedAt) || existingTrackName != archiveTrackName || existingCarName != archiveCarName {
+		existingTrackName, _ := archiveNameParts(existingArchive.Laps)
+		if !existingArchive.SavedAt.Equal(archive.SavedAt) || existingTrackName != archiveTrackName {
 			continue
 		}
 		if err := os.Remove(path); err != nil {
@@ -494,7 +504,7 @@ func stableArchiveFallbackID(laps []*models.Lap) string {
 		if lap == nil {
 			continue
 		}
-		return fmt.Sprintf("%d_%d_%d_%s_%d", lap.LapFinishTime, lap.LapTicks, lap.CarID, shortArchiveName(lap.CircuitID, 16), lap.Number)
+		return fmt.Sprintf("%d_%s_%s_%s_%d", lap.LapFinishTime, lap.LapTicks, lap.CarID, shortArchiveName(lap.CircuitID, 16), lap.Number)
 	}
 	return "empty"
 }
