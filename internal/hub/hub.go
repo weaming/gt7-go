@@ -34,8 +34,9 @@ func (h *Hub) Run() {
 		case client := <-h.Register:
 			h.mu.Lock()
 			h.clients[client] = true
+			total := len(h.clients)
 			h.mu.Unlock()
-			log.Printf("ws client connected: %s (total: %d)", client.ID, len(h.clients))
+			log.Printf("ws client connected: %s (total: %d)", client.ID, total)
 
 		case client := <-h.Unregister:
 			h.mu.Lock()
@@ -43,11 +44,12 @@ func (h *Hub) Run() {
 				delete(h.clients, client)
 				close(client.Send)
 			}
+			total := len(h.clients)
 			h.mu.Unlock()
-			log.Printf("ws client disconnected: %s (total: %d)", client.ID, len(h.clients))
+			log.Printf("ws client disconnected: %s (total: %d)", client.ID, total)
 
 		case message := <-h.broadcast:
-			h.mu.RLock()
+			h.mu.Lock()
 			for client := range h.clients {
 				select {
 				case client.Send <- message:
@@ -56,12 +58,12 @@ func (h *Hub) Run() {
 					delete(h.clients, client)
 				}
 			}
-			h.mu.RUnlock()
+			h.mu.Unlock()
 		}
 	}
 }
 
-func (h *Hub) Broadcast(v interface{}) {
+func (h *Hub) Broadcast(v any) {
 	data, err := json.Marshal(v)
 	if err != nil {
 		log.Printf("hub marshal error: %v", err)

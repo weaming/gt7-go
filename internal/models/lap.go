@@ -38,10 +38,14 @@ type Lap struct {
 	CarID        int    `json:"car_id"`
 	CarName      string `json:"car_name"`
 
-	IsReplay bool `json:"is_replay"`
-	IsManual bool `json:"is_manual"`
-	IsPitLap bool `json:"is_pit_lap"`
+	TotalDistance float64 `json:"total_distance"`
+
+	IsReplay   bool `json:"is_replay"`
+	IsManual   bool `json:"is_manual"`
+	IsPitLap   bool `json:"is_pit_lap"`
 	IsComplete bool `json:"is_complete"`
+
+	TimeDiff *TimeDiffResult `json:"time_diff,omitempty"`
 
 	CircuitID        string `json:"circuit_id,omitempty"`
 	CircuitName      string `json:"circuit_name,omitempty"`

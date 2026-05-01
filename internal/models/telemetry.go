@@ -32,6 +32,7 @@ type TelemetrySnapshot struct {
 	TyreTempFR float64 `json:"tyre_temp_fr"`
 	TyreTempRL float64 `json:"tyre_temp_rl"`
 	TyreTempRR float64 `json:"tyre_temp_rr"`
+	TireSlip   float64 `json:"tire_slip"`
 
 	SuspensionFL float64 `json:"suspension_fl"`
 	SuspensionFR float64 `json:"suspension_fr"`
@@ -57,6 +58,7 @@ type TelemetrySnapshot struct {
 	IsLoading bool `json:"is_loading"`
 	InGear    bool `json:"in_gear"`
 	HasTurbo  bool `json:"has_turbo"`
+	IsReplay  bool `json:"is_replay"`
 
 	EnergyRecovery float64 `json:"energy_recovery"`
 

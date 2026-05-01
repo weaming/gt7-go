@@ -45,9 +45,9 @@ class WSClient {
     (this.listeners[type] || []).forEach(fn => fn(data));
   }
 
-  send(cmd, id) {
+  send(cmd, id, extra) {
     if (this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({ type: 'command', cmd, id }));
+      this.ws.send(JSON.stringify(Object.assign({ type: 'command', cmd, id }, extra)));
     }
   }
 

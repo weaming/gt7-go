@@ -55,7 +55,7 @@ function getFuelMaps(lap) {
     const powerPct = (100 - i * 4) / 100;
     const consPct = (100 - i * 8) / 100;
     const adjCons = consumed * consPct;
-    const lapsOnFuel = adjCons > 0 ? Math.max(lap.fuel_at_start || 0, lap.fuel_at_end || 0) / adjCons : 0;
+    const lapsOnFuel = adjCons > 0 ? (lap.fuel_at_end || 0) / adjCons : 0;
     const timeRemaining = lapsOnFuel * lapTime;
     const timeDiff = -(powerPct - 1) * lapTime;
     results.push({

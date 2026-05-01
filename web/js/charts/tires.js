@@ -8,7 +8,7 @@ registerChart('tires', {
       xAxis: { type: 'value', show: false },
       yAxis: { type: 'value' },
       series: [
-        { type: 'line', showSymbol: false, lineStyle: { width: 1, color: '#795548' }, data: [] },
+        { type: 'line', showSymbol: false, lineStyle: { width: 1.5, color: '#00d5ff' }, data: [] },
         { name: i18n.t('misc.best_lap'), type: 'line', showSymbol: false, lineStyle: { width: 1, color: '#ff9800', type: 'dashed' }, data: [] },
       ],
       grid: { left: 50, right: 10, top: 30, bottom: 20 },

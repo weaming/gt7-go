@@ -15,7 +15,23 @@
     <span id="status-text" data-i18n="status.disconnected"></span>
     <span id="lap-info"></span>
   </div>
-  <button id="lang-toggle" onclick="i18n.toggle()" style="margin-left:auto;background:#16213e;border:1px solid #333;color:#aaa;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:12px"></button>
+  <div id="header-actions">
+    <div id="lap-data-tools">
+      <select id="lap-file-select" title="Lap files"></select>
+      <button onclick="loadSelectedLapFile()" data-i18n="misc.load"></button>
+      <button onclick="deleteSelectedLapFile()" data-i18n="misc.delete"></button>
+      <span class="toolbar-separator"></span>
+      <button onclick="saveAllLaps()" data-i18n="misc.save_all"></button>
+      <button onclick="clearAllLaps()" data-i18n="misc.clear"></button>
+    </div>
+    <span id="replay-record-container" style="display:none;font-size:12px;color:#aaa">
+      <label style="cursor:pointer">
+        <input type="checkbox" id="replay-record-toggle" onchange="toggleReplayRecord(this.checked)">
+        <span data-i18n="misc.record_replay"></span>
+      </label>
+    </span>
+    <button id="lang-toggle" onclick="i18n.toggle()"></button>
+  </div>
 </div>
 
 <div id="tabs">
@@ -27,7 +43,7 @@
 
 <div id="tab-content">
   <div class="tab-pane active" id="tab-0">
-    <div id="lap-table"></div>
+    <div id="lap-table" class="lap-table"></div>
     <div id="chart-speed" class="chart"></div>
     <div id="chart-timediff" class="chart"></div>
     <div id="chart-throttle" class="chart"></div>
@@ -41,14 +57,17 @@
     <div id="chart-variance" class="chart"></div>
   </div>
   <div class="tab-pane" id="tab-1">
+    <div id="lap-table-raceline" class="lap-table"></div>
     <div id="chart-raceline" class="chart full-height"></div>
   </div>
   <div class="tab-pane" id="tab-2">
+    <div id="lap-table-race" class="lap-table"></div>
     <div id="chart-fuel" class="chart" style="height:400px"></div>
     <div id="rpm-peaks-table"></div>
   </div>
   <div class="tab-pane" id="tab-3">
-    <div id="chart-corner" class="chart full-height"></div>
+    <div id="chart-corner-track" class="chart" style="flex:45"></div>
+    <div id="chart-corner" class="chart" style="flex:55"></div>
   </div>
 </div>
 

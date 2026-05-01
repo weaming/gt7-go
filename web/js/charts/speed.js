@@ -5,8 +5,8 @@ registerChart('speed', {
     chart.setOption({
       title: { text: i18n.t('chart.speed'), textStyle: { fontSize: 12 } },
       tooltip: { trigger: 'axis' },
-      xAxis: { type: 'value', name: 'Distance (km)', show: false },
-      yAxis: { type: 'value', name: 'km/h' },
+      xAxis: { type: 'value', show: false },
+      yAxis: { type: 'value' },
       series: [
         { type: 'line', showSymbol: false, lineStyle: { width: 1 }, data: [] },
         { name: i18n.t('misc.best_lap'), type: 'line', showSymbol: false, lineStyle: { width: 1, color: '#ff9800', type: 'dashed' }, data: [] },
@@ -37,10 +37,13 @@ registerChart('speed', {
   }
 });
 
+// dt = tick interval in seconds. data arrays can carry _tickInterval
+// for non-60fps recordings (e.g. old 10fps data loaded from file).
 function xAxis(speed) {
+  const dt = speed._tickInterval || (1 / 60);
   const result = [0];
   for (let i = 1; i < speed.length; i++) {
-    result.push(result[i-1] + (speed[i] / 3.6 / 1000) * 16.668);
+    result.push(result[i-1] + (speed[i] / 3.6 / 1000) * dt);
   }
   return result;
 }

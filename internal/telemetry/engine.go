@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	gttelemetry "github.com/zetetos/gt-telemetry/v2"
@@ -27,6 +28,10 @@ type Engine struct {
 	playstationIP string
 
 	hasConnected bool
+
+	forceRecord        atomic.Bool
+	liveLapDiffTick    atomic.Int32
+	currentLapSaveTick atomic.Int32
 
 	circuitID        string
 	circuitName      string
@@ -81,7 +86,7 @@ func (e *Engine) telemetryRunLoop(ctx context.Context) {
 }
 
 func (e *Engine) snapshotBroadcastLoop(ctx context.Context) {
-	ticker := time.NewTicker(100 * time.Millisecond)
+	ticker := time.NewTicker(time.Second / 60)
 	defer ticker.Stop()
 
 	for {
@@ -115,6 +120,12 @@ func (e *Engine) broadcastSnapshot() {
 	}
 
 	flags := t.Flags()
+	tireRatios := e.computeTireRatios(t)
+	tireSlip := 0.0
+	for _, ratio := range tireRatios {
+		tireSlip += ratio
+	}
+
 	snapshot := &tmodel.TelemetrySnapshot{
 		Speed:        float64(t.GroundSpeedMetresPerSecond()) * 3.6,
 		RPM:          float64(t.EngineRPM()),
@@ -145,6 +156,7 @@ func (e *Engine) broadcastSnapshot() {
 		TyreTempFR: float64(t.TyreTemperatureCelsius().FrontRight),
 		TyreTempRL: float64(t.TyreTemperatureCelsius().RearLeft),
 		TyreTempRR: float64(t.TyreTemperatureCelsius().RearRight),
+		TireSlip:   tireSlip,
 
 		SequenceID: t.SequenceID(),
 		CurrentLap: t.CurrentLap(),
@@ -176,6 +188,8 @@ func (e *Engine) broadcastSnapshot() {
 
 		CurrentLaptime: int64(t.TimeOfDay().Milliseconds()),
 	}
+	isReplay := e.isReplayTelemetry(t)
+	snapshot.IsReplay = isReplay
 
 	e.mu.Lock()
 	e.lastSnapshot = snapshot
@@ -186,23 +200,17 @@ func (e *Engine) broadcastSnapshot() {
 	}
 
 	curLap := snapshot.CurrentLap
-	lapTicks := e.lapManager.CurrentLapTicks()
+	shouldRecordReplay := e.forceRecord.Load()
+	shouldSaveCompletedLap := !isReplay || shouldRecordReplay
 
-	if lapTicks == 0 && curLap > 0 {
-		e.lapManager.StartNewLap(
-			int(t.VehicleID()), int(t.RaceLaps()), int(curLap),
-			float64(t.FuelLevel()), t.VehicleModel(),
-			e.circuitID, e.circuitName, e.circuitVariation,
-		)
+	if !e.lapManager.IsCurrentLapActive() && curLap > 0 {
+		e.startNewLap(t, snapshot)
 	}
 
-	isLive := t.GameState() == models.GameStateLive
-	hasActiveLap := lapTicks > 0 || e.lapManager.CurrentLapTicks() > 0
+	hasActiveLap := e.lapManager.IsCurrentLapActive()
 
-	// Log data for live laps; also keep logging during pit stops even
-	// if GameState briefly leaves Live (e.g. pit menu overlay).
-	if (isLive || hasActiveLap) && !flags.GamePaused {
-		tireSpeeds := t.WheelSpeedMetresPerSecond()
+	// Do not persist telemetry samples while the game is paused.
+	if !flags.GamePaused && hasActiveLap {
 		tireTemps := models.CornerSet{
 			FrontLeft:  t.TyreTemperatureCelsius().FrontLeft,
 			FrontRight: t.TyreTemperatureCelsius().FrontRight,
@@ -210,16 +218,7 @@ func (e *Engine) broadcastSnapshot() {
 			RearRight:  t.TyreTemperatureCelsius().RearRight,
 		}
 
-		speed := snapshot.Speed
-		tireRatios := make([]float64, 4)
-		if speed > 0 {
-			tireRatios[0] = float64(tireSpeeds.FrontLeft*3.6) / speed
-			tireRatios[1] = float64(tireSpeeds.FrontRight*3.6) / speed
-			tireRatios[2] = float64(tireSpeeds.RearLeft*3.6) / speed
-			tireRatios[3] = float64(tireSpeeds.RearRight*3.6) / speed
-		}
-
-		e.lapManager.LogData(
+		if err := e.lapManager.LogData(
 			snapshot.Speed,
 			snapshot.Throttle,
 			snapshot.Brake,
@@ -238,10 +237,22 @@ func (e *Engine) broadcastSnapshot() {
 				float64(tireTemps.RearRight),
 			},
 			curLap,
-		)
+		); err != nil {
+			log.Printf("log lap data: %v", err)
+		}
 
 		if curLap != snapshot.TotalLaps {
-			e.handleLapTransition(t)
+			e.handleLapTransition(t, shouldSaveCompletedLap)
+			if !e.lapManager.IsCurrentLapActive() && curLap > 0 {
+				e.startNewLap(t, snapshot)
+			}
+		}
+	}
+	saveTick := e.currentLapSaveTick.Add(1)
+	if saveTick >= 60 {
+		e.currentLapSaveTick.Store(0)
+		if err := e.lapManager.SaveCurrentLap(); err != nil {
+			log.Printf("save current lap: %v", err)
 		}
 	}
 
@@ -250,7 +261,69 @@ func (e *Engine) broadcastSnapshot() {
 			Type: "telemetry",
 			Data: snapshot,
 		})
+		tick := e.liveLapDiffTick.Add(1)
+		if tick >= 12 {
+			e.liveLapDiffTick.Store(0)
+			curState := e.lapManager.GetCurrentLapState()
+			if curState != nil && curState.CircuitID != "" && curState.CarName != "" {
+				ref := e.lapManager.GetBestLapForCircuit(curState.CircuitID, curState.CarName)
+				if ref != nil {
+					td := e.lapManager.GetCurrentLapTimeDiff(ref)
+					if td != nil {
+						e.hub.Broadcast(tmodel.LiveLapUpdate{
+							Type:     "live_lap_diff",
+							TimeDiff: td,
+						})
+					}
+				}
+			}
+		}
 	}
+}
+
+func (e *Engine) startNewLap(t *gttelemetry.Transformer, snapshot *tmodel.TelemetrySnapshot) {
+	curLap := snapshot.CurrentLap
+	log.Printf("telemetry: StartNewLap lap=%d seq=%d gameState=%v force=%v", curLap, t.SequenceID(), t.GameState(), e.forceRecord.Load())
+	e.lapManager.StartNewLap(
+		int(t.VehicleID()), int(t.RaceLaps()), int(curLap),
+		float64(t.FuelLevel()), t.VehicleModel(),
+		e.circuitID, e.circuitName, e.circuitVariation,
+	)
+
+	if e.hub.NumClients() > 0 {
+		if cur := e.lapManager.GetCurrentLapState(); cur != nil && cur.LapTicks > 0 {
+			e.hub.Broadcast(cur)
+		}
+	}
+}
+
+func (e *Engine) computeTireRatios(t *gttelemetry.Transformer) []float64 {
+	tireSpeeds := t.WheelSpeedMetresPerSecond()
+	speed := float64(t.GroundSpeedMetresPerSecond()) * 3.6
+	tireRatios := make([]float64, 4)
+	if speed <= 0 {
+		return tireRatios
+	}
+
+	tireRatios[0] = float64(tireSpeeds.FrontLeft*3.6) / speed
+	tireRatios[1] = float64(tireSpeeds.FrontRight*3.6) / speed
+	tireRatios[2] = float64(tireSpeeds.RearLeft*3.6) / speed
+	tireRatios[3] = float64(tireSpeeds.RearRight*3.6) / speed
+	return tireRatios
+}
+
+func (e *Engine) isReplayTelemetry(t *gttelemetry.Transformer) bool {
+	if t.GameState() == models.GameStateReplay {
+		return true
+	}
+	if e.client == nil {
+		return false
+	}
+	isReplaySource, err := e.client.IsReplaySource()
+	if err != nil {
+		return false
+	}
+	return isReplaySource
 }
 
 func (e *Engine) detectCircuit(t *gttelemetry.Transformer) {
@@ -273,7 +346,7 @@ func (e *Engine) detectCircuit(t *gttelemetry.Transformer) {
 	log.Printf("circuit detected: %s (%s - %s)", e.circuitID, e.circuitName, e.circuitVariation)
 }
 
-func (e *Engine) handleLapTransition(t *gttelemetry.Transformer) {
+func (e *Engine) handleLapTransition(t *gttelemetry.Transformer, shouldSaveCompleted bool) {
 	curLap := t.CurrentLap()
 
 	carName := e.client.Telemetry.VehicleModel()
@@ -287,9 +360,11 @@ func (e *Engine) handleLapTransition(t *gttelemetry.Transformer) {
 		float64(t.FuelLevel()),
 		int(t.VehicleID()),
 		carName,
+		shouldSaveCompleted,
 	)
 
 	if completedLap != nil {
+		log.Printf("telemetry: lap_completed num=%d time=%d ticks=%d", completedLap.Number, completedLap.LapFinishTime, completedLap.LapTicks)
 		e.hub.Broadcast(tmodel.LapCompletedMessage{
 			Type: "lap_completed",
 			Data: completedLap,
@@ -311,11 +386,22 @@ func (e *Engine) broadcastLapsUpdated() {
 		bestTime = 0
 	}
 
+	lap.ComputeAllTimeDiffs(laps)
+
 	e.hub.Broadcast(tmodel.LapsUpdatedMessage{
 		Type:     "laps_updated",
 		Laps:     laps,
 		BestTime: bestTime,
 	})
+}
+
+func (e *Engine) SetForceRecord(enabled bool) {
+	e.forceRecord.Store(enabled)
+	log.Printf("replay recording: %v", enabled)
+}
+
+func (e *Engine) IsForceRecording() bool {
+	return e.forceRecord.Load()
 }
 
 func (e *Engine) GetClient() *gttelemetry.Client {

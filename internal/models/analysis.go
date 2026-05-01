@@ -98,31 +98,44 @@ type WSCommand struct {
 
 // CurrentLapState mirrors the frontend's liveLap structure for resuming on WS reconnect.
 type CurrentLapState struct {
-	Type                         string    `json:"type"`
-	DataSpeed                    []float64 `json:"data_speed"`
-	DataThrottle                 []float64 `json:"data_throttle"`
-	DataBraking                  []float64 `json:"data_braking"`
-	DataCoasting                 []int     `json:"data_coasting"`
-	DataRPM                      []float64 `json:"data_rpm"`
-	DataGear                     []int     `json:"data_gear"`
-	DataBoost                    []float64 `json:"data_boost"`
-	DataRotationYaw              []float64 `json:"data_rotation_yaw"`
-	DataAbsoluteYawRatePerSecond []float64 `json:"data_absolute_yaw_rate_per_second"`
-	DataPositionX                []float64 `json:"data_position_x"`
-	DataPositionY                []float64 `json:"data_position_y"`
-	DataPositionZ                []float64 `json:"data_position_z"`
-	FuelAtStart                  int       `json:"fuel_at_start"`
-	FuelAtEnd                    int       `json:"fuel_at_end"`
-	FuelConsumed                 int       `json:"fuel_consumed"`
-	LapFinishTime                int64     `json:"lap_finish_time"`
-	IsLive                       bool      `json:"_is_live"`
-	LapTicks                     int       `json:"_lap_ticks"`
-	YawHistory                   []float64 `json:"_yaw_history"`
-	ThrottleAndBrakeTicks        int       `json:"throttle_and_brake_ticks"`
-	NoThrottleAndNoBrakeTicks    int       `json:"no_throttle_and_no_brake_ticks"`
-	FullBrakeTicks               int       `json:"full_brake_ticks"`
-	FullThrottleTicks            int       `json:"full_throttle_ticks"`
-	Number                       int       `json:"number"`
-	TotalLaps                    int       `json:"total_laps"`
-	CarName                      string    `json:"car_name"`
+	Type                         string          `json:"type"`
+	DataSpeed                    []float64       `json:"data_speed"`
+	DataThrottle                 []float64       `json:"data_throttle"`
+	DataBraking                  []float64       `json:"data_braking"`
+	DataCoasting                 []int           `json:"data_coasting"`
+	DataRPM                      []float64       `json:"data_rpm"`
+	DataGear                     []int           `json:"data_gear"`
+	DataTires                    []float64       `json:"data_tires"`
+	DataBoost                    []float64       `json:"data_boost"`
+	DataRotationYaw              []float64       `json:"data_rotation_yaw"`
+	DataAbsoluteYawRatePerSecond []float64       `json:"data_absolute_yaw_rate_per_second"`
+	DataPositionX                []float64       `json:"data_position_x"`
+	DataPositionY                []float64       `json:"data_position_y"`
+	DataPositionZ                []float64       `json:"data_position_z"`
+	FuelAtStart                  int             `json:"fuel_at_start"`
+	FuelAtEnd                    int             `json:"fuel_at_end"`
+	FuelConsumed                 int             `json:"fuel_consumed"`
+	LapFinishTime                int64           `json:"lap_finish_time"`
+	IsLive                       bool            `json:"_is_live"`
+	LapTicks                     int             `json:"_lap_ticks"`
+	YawHistory                   []float64       `json:"_yaw_history"`
+	ThrottleAndBrakeTicks        int             `json:"throttle_and_brake_ticks"`
+	NoThrottleAndNoBrakeTicks    int             `json:"no_throttle_and_no_brake_ticks"`
+	FullBrakeTicks               int             `json:"full_brake_ticks"`
+	FullThrottleTicks            int             `json:"full_throttle_ticks"`
+	Number                       int             `json:"number"`
+	TotalLaps                    int             `json:"total_laps"`
+	TotalDistance                float64         `json:"total_distance"`
+	CarName                      string          `json:"car_name"`
+	CircuitID                    string          `json:"circuit_id,omitempty"`
+	CircuitName                  string          `json:"circuit_name,omitempty"`
+	CircuitVariation             string          `json:"circuit_variation,omitempty"`
+	TimeDiff                     *TimeDiffResult `json:"time_diff,omitempty"`
+}
+
+// LiveLapUpdate is periodically broadcast during live telemetry with the
+// backend-computed time diff for the in-progress lap.
+type LiveLapUpdate struct {
+	Type     string          `json:"type"`
+	TimeDiff *TimeDiffResult `json:"time_diff"`
 }

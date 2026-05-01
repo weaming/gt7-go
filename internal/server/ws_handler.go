@@ -13,11 +13,12 @@ import (
 	"github.com/weaming/gt7-go/internal/hub"
 	"github.com/weaming/gt7-go/internal/lap"
 	"github.com/weaming/gt7-go/internal/models"
+	"github.com/weaming/gt7-go/internal/telemetry"
 )
 
 var wsIDCounter atomic.Int64
 
-func wsHandler(h *hub.Hub, lapMgr *lap.Manager) http.HandlerFunc {
+func wsHandler(h *hub.Hub, lapMgr *lap.Manager, engine *telemetry.Engine) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
 			InsecureSkipVerify: true,
@@ -43,6 +44,7 @@ func wsHandler(h *hub.Hub, lapMgr *lap.Manager) http.HandlerFunc {
 				bestTime = l.LapFinishTime
 			}
 		}
+		lap.ComputeAllTimeDiffs(laps)
 		msg, _ := json.Marshal(models.LapsUpdatedMessage{
 			Type:     "laps_updated",
 			Laps:     laps,
@@ -55,8 +57,10 @@ func wsHandler(h *hub.Hub, lapMgr *lap.Manager) http.HandlerFunc {
 			}
 		}
 
-		// Send current in-progress lap so frontend can resume
-		if cur := lapMgr.GetCurrentLapState(); cur != nil {
+		// Send current in-progress lap so frontend can resume.
+		// Skip when there's no accumulated data (e.g. during replay without forceRecord).
+		if cur := lapMgr.GetCurrentLapState(); cur != nil && cur.LapTicks > 0 {
+			log.Printf("ws: sending current_lap to new client (num=%d ticks=%d)", cur.Number, cur.LapTicks)
 			msg, _ := json.Marshal(cur)
 			if msg != nil {
 				select {
@@ -66,8 +70,20 @@ func wsHandler(h *hub.Hub, lapMgr *lap.Manager) http.HandlerFunc {
 			}
 		}
 
+		// Send current replay record state
+		msg, _ = json.Marshal(map[string]any{
+			"type":    "replay_record_state",
+			"enabled": engine.IsForceRecording(),
+		})
+		if msg != nil {
+			select {
+			case client.Send <- msg:
+			default:
+			}
+		}
+
 		go wsWritePump(conn, client)
-		wsReadPump(conn, client, h)
+		wsReadPump(conn, client, h, engine)
 	}
 }
 
@@ -80,7 +96,7 @@ func wsWritePump(conn *websocket.Conn, client *hub.Client) {
 	}
 }
 
-func wsReadPump(conn *websocket.Conn, client *hub.Client, h *hub.Hub) {
+func wsReadPump(conn *websocket.Conn, client *hub.Client, h *hub.Hub, engine *telemetry.Engine) {
 	defer func() {
 		h.Unregister <- client
 		_ = conn.Close(websocket.StatusNormalClosure, "connection closed")
@@ -93,13 +109,27 @@ func wsReadPump(conn *websocket.Conn, client *hub.Client, h *hub.Hub) {
 		}
 
 		var cmd struct {
-			Cmd string          `json:"cmd"`
-			ID  json.RawMessage `json:"id,omitempty"`
+			Cmd     string          `json:"cmd"`
+			ID      json.RawMessage `json:"id,omitempty"`
+			Enabled *bool           `json:"enabled,omitempty"`
 		}
 		if err := json.Unmarshal(msg, &cmd); err != nil {
 			continue
 		}
 
-		log.Printf("ws command: %s", cmd.Cmd)
+		switch cmd.Cmd {
+		case "set_replay_record":
+			if cmd.Enabled == nil {
+				continue
+			}
+			engine.SetForceRecord(*cmd.Enabled)
+			log.Printf("replay recording: %v", *cmd.Enabled)
+			h.Broadcast(map[string]any{
+				"type":    "replay_record_state",
+				"enabled": *cmd.Enabled,
+			})
+		default:
+			log.Printf("ws command: %s", cmd.Cmd)
+		}
 	}
 }

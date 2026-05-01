@@ -50,11 +50,17 @@ func main() {
 	}
 	lapMgr.SetSavePath(lapsPath)
 
-	currentLapPath := filepath.Join(*dataDir, "current_lap.json")
+	currentLapPath := filepath.Join(*dataDir, "current_lap.jsonl")
+	lapMgr.SetCurrentLapSavePath(currentLapPath)
+	log.Printf("loading current lap from %s", currentLapPath)
 	if err := lapMgr.LoadCurrentLapFromFile(currentLapPath); err != nil {
 		log.Printf("load current lap: %v", err)
 	}
-	lapMgr.SetCurrentLapSavePath(currentLapPath)
+	if lapMgr.IsCurrentLapActive() {
+		log.Printf("current lap loaded: ticks=%d", lapMgr.CurrentLapTicks())
+	} else {
+		log.Printf("current lap NOT loaded (file may not exist)")
+	}
 
 	telem := telemetry.New(h, lapMgr, *psIP)
 
