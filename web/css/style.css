@@ -82,7 +82,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 }
 .driver-primary { grid-area: primary; padding: 18px; display: grid; grid-template-columns: 1fr 150px; gap: 16px; align-items: stretch; }
 .driver-controls { grid-area: controls; padding: 16px 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.driver-grid { grid-area: grid; display: grid; grid-template-columns: repeat(2, minmax(150px, 1fr)); gap: 1px; background: #293348; overflow: hidden; }
+.driver-grid { grid-area: grid; display: grid; grid-template-columns: repeat(3, minmax(120px, 1fr)); gap: 1px; background: #293348; overflow: hidden; }
 .driver-tyres { grid-area: tyres; padding: 14px; display: grid; grid-template-columns: repeat(2, minmax(90px, 1fr)); gap: 10px; }
 .driver-label { color: #8a95aa; font-size: 12px; text-transform: uppercase; }
 .driver-speed { display: flex; flex-direction: column; justify-content: center; min-width: 0; }
@@ -110,15 +110,35 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .driver-pedal-track div { position: absolute; left: 0; bottom: 0; width: 100%; height: 0; transition: height 100ms linear; }
 .driver-pedal-track.throttle div { background: #19c37d; }
 .driver-pedal-track.brake div { background: #e94560; }
-.driver-metric { background: #101725; padding: 14px; min-height: 84px; display: flex; flex-direction: column; justify-content: center; gap: 8px; }
-.driver-metric strong { color: #f2f7ff; font-size: 24px; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.driver-metric { background: #101725; padding: 14px; min-height: 84px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; min-width: 0; }
+.driver-metric strong { color: #f2f7ff; font-size: 24px; line-height: 1.05; min-height: 26px; width: 100%; overflow: hidden; text-overflow: clip; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .driver-metric strong.gain { color: #19c37d; }
 .driver-metric strong.loss { color: #e94560; }
+.driver-submetric { color: #9aa8bf; font-size: 12px; line-height: 1.1; min-height: 17px; width: 100%; overflow: hidden; text-overflow: clip; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.driver-submetric strong { color: #d8e1f0; font-size: 15px; min-height: 17px; }
+.driver-metric-current { grid-column: 1; grid-row: 1; }
+.driver-metric-fuel { grid-column: 2; grid-row: 1; }
+.driver-metric-live-time { grid-column: 3; grid-row: 1; }
+.driver-metric-boost { grid-column: 1; grid-row: 2; }
+.driver-metric-last-lap { grid-column: 3; grid-row: 2; }
+.driver-metric-slip { grid-column: 2; grid-row: 2; }
+.driver-metric-water { grid-column: 1; grid-row: 3; }
+.driver-metric-best-lap { grid-column: 3; grid-row: 3; }
+.driver-metric-oil { grid-column: 2; grid-row: 3; }
+.driver-metric-time > strong,
+.driver-metric-time .driver-submetric strong { min-width: 7ch; margin: 0 auto; }
+.driver-metric-fuel > strong { font-size: 21px; }
 .driver-tyres { background: #101725; border: 1px solid #293348; border-radius: 6px; padding: 12px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-.driver-tyre { display: flex; flex-direction: column; align-items: center; gap: 4px; background: #172033; border: 1px solid #293348; border-radius: 5px; padding: 8px; }
+.driver-tyre { display: flex; flex-direction: column; align-items: center; gap: 4px; background: #172033; border: 1px solid #293348; border-radius: 5px; padding: 8px; min-width: 0; }
 .tyre-label { color: #8a95aa; font-size: 11px; }
-.tyre-temp strong { color: #f2f7ff; font-size: 20px; font-variant-numeric: tabular-nums; }
-.tyre-slip strong { color: #00d5ff; font-size: 14px; font-variant-numeric: tabular-nums; }
+.tyre-temp,
+.tyre-slip { width: 100%; display: flex; align-items: center; justify-content: center; text-align: center; }
+.tyre-temp { min-height: 24px; }
+.tyre-slip { min-height: 18px; }
+.tyre-temp strong,
+.tyre-slip strong { display: block; width: 100%; overflow: hidden; text-overflow: clip; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tyre-temp strong { color: #f2f7ff; font-size: 20px; }
+.tyre-slip strong { color: #00d5ff; font-size: 14px; }
 .driver-dashboard.is-paused .driver-speed-value,
 .driver-dashboard.is-paused .driver-gear-value { opacity: 0.55; }
 
@@ -191,6 +211,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
   .driver-tyres { padding: 6px; gap: 4px; }
   .driver-tyre { padding: 4px; gap: 2px; }
   .tyre-label { font-size: 9px; }
+  .tyre-temp { min-height: 17px; }
+  .tyre-slip { min-height: 13px; }
   .tyre-temp strong { font-size: 14px; }
   .tyre-slip strong { font-size: 11px; }
   .driver-primary {
@@ -217,9 +239,12 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
   .driver-pedal { min-height: 144px; gap: 4px; padding-top: 6px; min-width: 55px; }
   .driver-pedal-track { width: 26px; flex: 1; min-height: 104px; }
   .driver-pedal-value { font-size: 13px; }
-  .driver-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .driver-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .driver-metric { min-height: 38px; padding: 5px 8px; gap: 3px; }
-  .driver-metric strong { font-size: 16px; }
+  .driver-metric strong { font-size: 16px; min-height: 17px; }
+  .driver-metric-fuel > strong { font-size: 13px; }
+  .driver-submetric { font-size: 10px; min-height: 13px; }
+  .driver-submetric strong { font-size: 12px; min-height: 13px; }
   .driver-tyres { padding: 5px; grid-template-columns: 1fr 1fr; gap: 5px; }
   .driver-tyre { min-height: 38px; padding: 0 6px; flex-direction: column; justify-content: center; gap: 2px; }
   .driver-tyre strong { font-size: 15px; }

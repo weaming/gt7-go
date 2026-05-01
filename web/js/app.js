@@ -673,7 +673,8 @@ function renderDriverDashboard() {
 
   setText('driver-last-lap', snap.last_laptime > 0 ? msToTime(snap.last_laptime) : '--');
   setText('driver-best-lap', snap.best_laptime > 0 ? msToTime(snap.best_laptime) : '--');
-  setText('driver-fuel', formatFuel(snap.fuel, snap.fuel_capacity));
+  const fuelLapsRemaining = hasTelemetry ? estimateFuelLapsRemaining(snap) : null;
+  setText('driver-fuel', formatFuel(snap.fuel, snap.fuel_capacity, fuelLapsRemaining));
   setText('driver-boost', hasTelemetry ? Math.max(0, snap.boost || 0).toFixed(2) + ' bar' : '--');
   setText('driver-tire-slip', hasTelemetry ? formatTireSlip(snap.tire_slip_avg) : '--');
   setText('driver-water-temp', hasTelemetry ? Math.round(snap.water_temp || 0) + '°C' : '--');
@@ -693,7 +694,7 @@ function renderDriverDashboard() {
     if (!el) return;
     if (hasTelemetry && Number.isFinite(slip) && slip >= 0) {
       const slipText = formatWheelTireSlip(slip);
-      el.textContent = slipText;
+      el.textContent = slipText || '\u00a0';
       el.style.color = slipText ? tireSlipColor(slip) : '';
     } else {
       el.textContent = '--';
@@ -782,13 +783,82 @@ function latestTimeDiffMs(timeDiff) {
   return Number.isFinite(value) ? value : null;
 }
 
-function formatFuel(fuel, capacity) {
+function formatFuel(fuel, capacity, fuelLapsRemaining) {
   if (fuel == null || !Number.isFinite(fuel)) return '--';
+  const parts = [`${Math.round(fuel)}L`];
   if (capacity > 0) {
     const percent = Math.round(fuel / capacity * 100);
-    return `${Math.round(fuel)}L · ${percent}%`;
+    parts.push(`${percent}%`);
   }
-  return `${Math.round(fuel)}L`;
+  if (Number.isFinite(fuelLapsRemaining) && fuelLapsRemaining >= 0) {
+    parts.push(formatFuelLapsRemaining(fuelLapsRemaining));
+  }
+  return parts.join(' · ');
+}
+
+function estimateFuelLapsRemaining(snap) {
+  if (!snap || !Number.isFinite(snap.fuel) || snap.fuel <= 0) {
+    return null;
+  }
+
+  const fuelPerLap = estimateFuelPerLap();
+  if (!fuelPerLap || fuelPerLap <= 0) {
+    return null;
+  }
+
+  return snap.fuel / fuelPerLap;
+}
+
+function estimateFuelPerLap() {
+  const liveEstimate = estimateLiveFuelPerLap();
+  if (liveEstimate > 0) {
+    return liveEstimate;
+  }
+
+  const recentLap = findFuelReferenceLap();
+  return recentLap ? recentLap.fuel_consumed : null;
+}
+
+function findFuelReferenceLap() {
+  if (currentVehicleModel) {
+    const matchingCarLap = lapsData.find(lap =>
+      isFuelReferenceLap(lap) && lap.car_name === currentVehicleModel
+    );
+    if (matchingCarLap) {
+      return matchingCarLap;
+    }
+  }
+
+  return lapsData.find(isFuelReferenceLap);
+}
+
+function isFuelReferenceLap(lap) {
+  return lap && !lap.is_pit_lap && Number.isFinite(lap.fuel_consumed) && lap.fuel_consumed > 0;
+}
+
+function estimateLiveFuelPerLap() {
+  if (!liveLap || !Number.isFinite(liveLap.fuel_consumed) || liveLap.fuel_consumed <= 0) {
+    return null;
+  }
+  if (!Number.isFinite(liveLap.total_distance) || liveLap.total_distance <= 0 || circuitLength <= 0) {
+    return null;
+  }
+
+  const lapProgress = Math.min(1, Math.max(0, liveLap.total_distance / circuitLength));
+  if (lapProgress < 0.25) {
+    return null;
+  }
+
+  return liveLap.fuel_consumed / lapProgress;
+}
+
+function formatFuelLapsRemaining(value) {
+  if (value == null || !Number.isFinite(value) || value < 0) {
+    return '--';
+  }
+
+  const suffix = i18n.lang === 'zh' ? '圈' : ' laps';
+  return value.toFixed(1) + suffix;
 }
 
 function formatTireSlip(value) {
