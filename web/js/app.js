@@ -54,7 +54,8 @@ function resetLiveLap(snap) {
     data_coasting: [throttle === 0 && brake === 0 ? 1 : 0],
     data_rpm: [snap.rpm || 0],
     data_gear: [snap.gear || 0],
-    data_tires: [snap.tire_slip || 0],
+    data_tires: [snap.tire_slip_avg || 0],
+    data_tire_slip_max: [snap.tire_slip_max || 0],
     data_boost: [snap.boost || 0],
     data_rotation_yaw: [yaw],
     data_absolute_yaw_rate_per_second: [0],
@@ -90,7 +91,8 @@ function accumulateLiveLap(snap) {
   liveLap.data_coasting.push(throttle === 0 && brake === 0 ? 1 : 0);
   liveLap.data_rpm.push(snap.rpm || 0);
   liveLap.data_gear.push(snap.gear || 0);
-  liveLap.data_tires.push(snap.tire_slip || 0);
+  liveLap.data_tires.push(snap.tire_slip_avg || 0);
+  liveLap.data_tire_slip_max.push(snap.tire_slip_max || 0);
   liveLap.data_boost.push(snap.boost || 0);
   liveLap.data_rotation_yaw.push(yaw);
   liveLap._yaw_history.push(yaw);
@@ -213,6 +215,9 @@ ws.on('current_lap', (data) => {
   currentVehicleModel = data.car_name || '';
   if (!liveLap.data_tires) {
     liveLap.data_tires = [];
+  }
+  if (!liveLap.data_tire_slip_max) {
+    liveLap.data_tire_slip_max = [];
   }
   if (liveLap.data_speed) {
     liveLap.data_speed._tickInterval = 1 / 60;
@@ -631,18 +636,34 @@ function renderDriverDashboard() {
   setText('driver-best-lap', snap.best_laptime > 0 ? msToTime(snap.best_laptime) : '--');
   setText('driver-fuel', formatFuel(snap.fuel, snap.fuel_capacity));
   setText('driver-boost', hasTelemetry ? Math.max(0, snap.boost || 0).toFixed(2) + ' bar' : '--');
-  setText('driver-tire-slip', hasTelemetry ? formatTireSlip(snap.tire_slip) : '--');
+  setText('driver-tire-slip', hasTelemetry ? formatTireSlip(snap.tire_slip_avg) : '--');
   setText('driver-water-temp', hasTelemetry ? Math.round(snap.water_temp || 0) + '°C' : '--');
   setText('driver-oil-temp', hasTelemetry ? Math.round(snap.oil_temp || 0) + '°C' : '--');
 
-  const renderTyre = (id, temp) => {
+  const renderTyreTemp = (id, temp) => {
     setText(id, formatTemperature(temp, hasTelemetry));
     setTemperatureColor(id, temp, hasTelemetry);
   };
-  renderTyre('driver-tyre-fl', snap.tyre_temp_fl);
-  renderTyre('driver-tyre-fr', snap.tyre_temp_fr);
-  renderTyre('driver-tyre-rl', snap.tyre_temp_rl);
-  renderTyre('driver-tyre-rr', snap.tyre_temp_rr);
+  renderTyreTemp('driver-tyre-fl', snap.tyre_temp_fl);
+  renderTyreTemp('driver-tyre-fr', snap.tyre_temp_fr);
+  renderTyreTemp('driver-tyre-rl', snap.tyre_temp_rl);
+  renderTyreTemp('driver-tyre-rr', snap.tyre_temp_rr);
+
+  const renderTyreSlip = (id, slip) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (hasTelemetry && Number.isFinite(slip) && slip >= 0) {
+      el.textContent = formatTireSlip(slip);
+      el.style.color = tireSlipColor(slip);
+    } else {
+      el.textContent = '--';
+      el.style.color = '';
+    }
+  };
+  renderTyreSlip('driver-slip-fl', snap.tire_slip_fl);
+  renderTyreSlip('driver-slip-fr', snap.tire_slip_fr);
+  renderTyreSlip('driver-slip-rl', snap.tire_slip_rl);
+  renderTyreSlip('driver-slip-rr', snap.tire_slip_rr);
 }
 
 function setTemperatureColor(id, temp, hasTelemetry) {
@@ -732,7 +753,14 @@ function formatFuel(fuel, capacity) {
 
 function formatTireSlip(value) {
   if (value == null || !Number.isFinite(value)) return '--';
-  return (value / 4).toFixed(2);
+  return (value * 100).toFixed(1) + '%';
+}
+
+function tireSlipColor(value) {
+  if (value >= 0.3) return '#e94560';
+  if (value >= 0.15) return '#f6c85f';
+  if (value >= 0.05) return '#19c37d';
+  return '#00d5ff';
 }
 
 function formatTemperature(value, hasTelemetry) {

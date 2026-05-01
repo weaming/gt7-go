@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"math"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -130,10 +131,18 @@ func (e *Engine) broadcastSnapshot() {
 
 	flags := t.Flags()
 	tireRatios := e.computeTireRatios(t)
-	tireSlip := 0.0
+	tireSlipAvg := 0.0
+	tireSlipMax := 0.0
+	maxAbs := 0.0
 	for _, ratio := range tireRatios {
-		tireSlip += ratio
+		absRatio := math.Abs(ratio)
+		tireSlipAvg += absRatio
+		if absRatio > maxAbs {
+			maxAbs = absRatio
+			tireSlipMax = ratio
+		}
 	}
+	tireSlipAvg /= 4
 
 	snapshot := &tmodel.TelemetrySnapshot{
 		Speed:        float64(t.GroundSpeedMetresPerSecond()) * 3.6,
@@ -166,7 +175,12 @@ func (e *Engine) broadcastSnapshot() {
 		TyreTempFR: float64(t.TyreTemperatureCelsius().FrontRight),
 		TyreTempRL: float64(t.TyreTemperatureCelsius().RearLeft),
 		TyreTempRR: float64(t.TyreTemperatureCelsius().RearRight),
-		TireSlip:   tireSlip,
+		TireSlipFL: tireRatios[0],
+		TireSlipFR: tireRatios[1],
+		TireSlipRL: tireRatios[2],
+		TireSlipRR: tireRatios[3],
+		TireSlipAvg: tireSlipAvg,
+		TireSlipMax: tireSlipMax,
 
 		SequenceID: t.SequenceID(),
 		CurrentLap: t.CurrentLap(),
@@ -333,10 +347,10 @@ func (e *Engine) computeTireRatios(t *gttelemetry.Transformer) []float64 {
 		return tireRatios
 	}
 
-	tireRatios[0] = float64(tireSpeeds.FrontLeft*3.6) / speed
-	tireRatios[1] = float64(tireSpeeds.FrontRight*3.6) / speed
-	tireRatios[2] = float64(tireSpeeds.RearLeft*3.6) / speed
-	tireRatios[3] = float64(tireSpeeds.RearRight*3.6) / speed
+	tireRatios[0] = (speed - float64(tireSpeeds.FrontLeft*3.6)) / speed
+	tireRatios[1] = (speed - float64(tireSpeeds.FrontRight*3.6)) / speed
+	tireRatios[2] = (speed - float64(tireSpeeds.RearLeft*3.6)) / speed
+	tireRatios[3] = (speed - float64(tireSpeeds.RearRight*3.6)) / speed
 	return tireRatios
 }
 

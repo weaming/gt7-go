@@ -330,9 +330,9 @@ func (m *Manager) LogData(speed, throttle, brake float64, rpm float64, gear int,
 
 	sumTireRatio := 0.0
 	for _, r := range tireRatios {
-		sumTireRatio += r
+		sumTireRatio += math.Abs(r)
 	}
-	cl.dataTires = append(cl.dataTires, sumTireRatio)
+	cl.dataTires = append(cl.dataTires, sumTireRatio/4)
 
 	cl.lapTicks++
 	cl.lapLiveTime = float64(cl.lapTicks) / 60.0

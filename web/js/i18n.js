@@ -17,6 +17,8 @@ const i18n = {
     'chart.rpm': { zh: '转速', en: 'RPM' },
     'chart.boost': { zh: '增压值 (bar)', en: 'Boost (bar)' },
     'chart.tires': { zh: '轮胎滑移率', en: 'Tire Slip Ratio' },
+    'chart.tires_avg': { zh: '平均', en: 'Avg' },
+    'chart.tires_max': { zh: '最大', en: 'Max' },
     'chart.variance': { zh: '速度方差 (圈间)', en: 'Speed Variance (across laps)' },
     'chart.raceline': { zh: '赛车线（俯视）', en: 'Racing Line (Top View)' },
     'chart.fuel': { zh: '燃油策略', en: 'Fuel Strategy' },
