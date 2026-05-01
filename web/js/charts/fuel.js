@@ -29,10 +29,10 @@ registerChart('fuel', {
       grid: { left: 50, right: 50, top: 55, bottom: 20 },
     });
   },
-  update(laps, idx) {
+  update(laps, idx, liveLap) {
     const chart = charts['fuel'];
     if (!chart) return;
-    const lap = laps[idx] || laps[0];
+    const lap = liveLap || laps[idx] || laps[0];
     if (!lap || !lap.fuel_at_start) { chart.setOption({ series: [{ data: [] }, { data: [] }] }); return; }
     if (!lap.fuel_consumed) { chart.setOption({ series: [{ data: [] }, { data: [] }] }); return; }
     const maps = getFuelMaps(lap);

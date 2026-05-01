@@ -22,25 +22,24 @@ registerChart('tires', {
       grid: { left: 50, right: 10, top: 50, bottom: 20 },
     });
   },
-  update(laps, idx) {
+  update(laps, idx, liveLap) {
     const chart = charts['tires'];
     if (!chart) return;
-    if (laps.length === 0) { chart.setOption({ series: [{ data: [] }, { data: [] }, { data: [] }] }); return; }
-    const lap = laps[idx] || laps[0];
-    if (!lap || !lap.data_tires) return;
-    const x = xAxis(lap.data_speed || lap.data_tires);
+    const targetLap = liveLap || laps[idx] || laps[0];
+    if (!targetLap || !targetLap.data_tires) { chart.setOption({ series: [{ data: [] }, { data: [] }, { data: [] }] }); return; }
+    const x = xAxis(targetLap.data_speed || targetLap.data_tires);
     const best = getBestLap(laps);
     let bestData = [];
-    if (best && best !== lap && best.data_tires) {
+    if (best && best !== targetLap && best.data_tires) {
       const bx = xAxis(best.data_speed || best.data_tires);
       bestData = best.data_tires.map((v, i) => [bx[i], v]);
     }
     let maxData = [];
-    if (lap.data_tire_slip_max) {
-      maxData = lap.data_tire_slip_max.map((v, i) => [x[i], v]);
+    if (targetLap.data_tire_slip_max) {
+      maxData = targetLap.data_tire_slip_max.map((v, i) => [x[i], v]);
     }
     chart.setOption({ series: [
-      { name: i18n.t('chart.tires_avg'), data: lap.data_tires.map((v,i) => [x[i], v]) },
+      { name: i18n.t('chart.tires_avg'), data: targetLap.data_tires.map((v,i) => [x[i], v]) },
       { name: i18n.t('chart.tires_max'), data: maxData },
       { name: i18n.t('misc.best_lap'), data: bestData },
     ]});

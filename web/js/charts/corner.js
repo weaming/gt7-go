@@ -45,12 +45,13 @@ registerChart('corner-track', {
       ],
     });
   },
-  update(laps, idx) {
+  update(laps, idx, liveLap) {
     const chart = charts['corner-track'];
     if (!chart) return;
     if (laps.length < 2) { chart.setOption({ series: [{ data: [] }, { data: [] }] }); return; }
 
-    const result = cornerTimeLoss(laps, idx);
+    const lap = liveLap || laps[idx];
+    const result = cornerTimeLoss(laps, lap ? laps.indexOf(lap) : idx);
     if (!result || !result.corners || result.corners.length === 0) {
       chart.setOption({ series: [{ data: [] }, { data: [] }] });
       return;
@@ -159,12 +160,13 @@ registerChart('corner', {
       ],
     });
   },
-  update(laps, idx) {
+  update(laps, idx, liveLap) {
     const chart = charts['corner'];
     if (!chart) return;
     if (laps.length < 2) { chart.setOption({ series: [{ data: [] }], graphic: [] }); return; }
 
-    const result = cornerTimeLoss(laps, idx);
+    const lap = liveLap || laps[idx];
+    const result = cornerTimeLoss(laps, lap ? laps.indexOf(lap) : idx);
     window._cornerResult = result;
     if (!result || !result.corners || result.corners.length === 0) {
       chart.setOption({ series: [{ data: [] }], graphic: [] });

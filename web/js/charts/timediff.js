@@ -11,12 +11,12 @@ registerChart('timediff', {
       grid: { left: 50, right: 10, top: 30, bottom: 20 },
     });
   },
-  update(laps, idx) {
+  update(laps, idx, liveLap) {
     const chart = charts['timediff'];
     const best = getBestLap(laps);
     if (!chart || laps.length < 2 || !best) { chart?.setOption({ series: [{ data: [] }] }); return; }
 
-    const lap = laps[idx] || laps[0];
+    const lap = liveLap || laps[idx] || laps[0];
     if (!lap || !best) return;
 
     // Use backend-computed time diff if available (position-based, more accurate)

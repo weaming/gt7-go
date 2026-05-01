@@ -14,11 +14,11 @@ registerChart('yawrate', {
       grid: { left: 50, right: 10, top: 30, bottom: 20 },
     });
   },
-  update(laps, idx) {
+  update(laps, idx, liveLap) {
     const chart = charts['yawrate'];
     if (!chart) return;
     if (laps.length === 0) { chart.setOption({ series: [{ data: [] }, { data: [] }] }); return; }
-    const lap = laps[idx] || laps[0];
+    const lap = liveLap || laps[idx] || laps[0];
     if (!lap || !lap.data_absolute_yaw_rate_per_second) return;
     const x = xAxis(lap.data_speed || lap.data_absolute_yaw_rate_per_second);
     const best = getBestLap(laps);

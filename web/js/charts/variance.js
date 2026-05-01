@@ -11,7 +11,7 @@ registerChart('variance', {
       grid: { left: 50, right: 10, top: 30, bottom: 20 },
     });
   },
-  update(laps, idx) {
+  update(laps, idx, liveLap) {
     const chart = charts['variance'];
     if (!chart || laps.length < 2) { chart?.setOption({ series: [{ data: [] }] }); return; }
     const variance = computeVariance(laps);

@@ -14,11 +14,11 @@ registerChart('braking', {
       grid: { left: 50, right: 10, top: 30, bottom: 20 },
     });
   },
-  update(laps, idx) {
+  update(laps, idx, liveLap) {
     const chart = charts['braking'];
     if (!chart) return;
     if (laps.length === 0) { chart.setOption({ series: [{ data: [] }, { data: [] }] }); return; }
-    const lap = laps[idx] || laps[0];
+    const lap = liveLap || laps[idx] || laps[0];
     if (!lap || !lap.data_braking) return;
     const x = xAxis(lap.data_speed || lap.data_braking);
     const best = getBestLap(laps);

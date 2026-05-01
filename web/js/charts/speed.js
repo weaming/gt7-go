@@ -14,23 +14,22 @@ registerChart('speed', {
       grid: { left: 50, right: 10, top: 30, bottom: 20 },
     });
   },
-  update(laps, idx) {
+  update(laps, idx, liveLap) {
     const chart = charts['speed'];
     if (!chart) return;
-    if (laps.length === 0) { chart.setOption({ series: [{ data: [] }, { data: [] }] }); return; }
-    const lap = laps[idx] || laps[0];
-    if (!lap || !lap.data_speed) return;
-    const x = xAxis(lap.data_speed);
+    const targetLap = liveLap || laps[idx] || laps[0];
+    if (!targetLap || !targetLap.data_speed) { chart.setOption({ series: [{ data: [] }, { data: [] }] }); return; }
+    const x = xAxis(targetLap.data_speed);
     const best = getBestLap(laps);
     let bestData = [];
-    if (best && best !== lap && best.data_speed) {
+    if (best && best !== targetLap && best.data_speed) {
       const bx = xAxis(best.data_speed);
       bestData = best.data_speed.map((v, i) => [bx[i], v]);
     }
     chart.setOption({
       xAxis: { show: true },
       series: [
-        { data: lap.data_speed.map((v, i) => [x[i], v]) },
+        { data: targetLap.data_speed.map((v, i) => [x[i], v]) },
         { data: bestData },
       ],
     });

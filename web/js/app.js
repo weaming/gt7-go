@@ -12,6 +12,7 @@ let currentVehicleModel = '';
 let gamePaused = false;
 let isReplayMode = false;
 let isRaceComplete = false;
+let isForceRecording = false;
 let lastPS5Connected = null;
 let circuitLength = 0; // meters, 0 = unknown
 let latestTelemetrySnapshot = null;
@@ -189,9 +190,10 @@ ws.on('lap_completed', (data) => {
   const completedLap = data && (data.lap || data.data || data);
 
   liveLap = null;
-  if (wasLiveSelected && completedLap) {
+  if (wasLiveSelected && completedLap && !isForceRecording) {
     selectedTarget = newHistoryTarget(0, completedLap);
-  } else {
+    normalizeSelectedTarget();
+  } else if (!isForceRecording) {
     normalizeSelectedTarget();
   }
   updateAllCharts();
@@ -266,6 +268,7 @@ function updateAllCharts() {
   const targetLapIndex = getSelectedLapIndex(selectableLaps);
   const best = getBestLap(selectableLaps);
   const visibleChartNames = getVisibleChartNames();
+  const isLive = selectedTarget.type === 'live' && !!liveLap;
   // Use the best lap's total distance as the x-axis max so all laps
   // render on the same scale. When the best lap is incomplete, fall
   // back to circuit length for proper right-aligned comparison.
@@ -281,7 +284,7 @@ function updateAllCharts() {
   Object.entries(chartModules).forEach(([name, mod]) => {
     if (!mod.update) return;
     if (!visibleChartNames.has(name)) return;
-    mod.update(selectableLaps, targetLapIndex);
+    mod.update(selectableLaps, targetLapIndex, isLive ? liveLap : null);
   });
   // Always set xAxis.max — when the best lap transitions from incomplete
   // to complete, the old max stays cached in ECharts if we skip the call.
@@ -1028,6 +1031,7 @@ function msToTime(ms) {
 // Replay record toggle
 ws.on('replay_record_state', (data) => {
   const enabled = data.enabled || false;
+  isForceRecording = enabled;
   document.getElementById('replay-record-toggle').checked = enabled;
   document.getElementById('replay-record-container').style.display = '';
 });

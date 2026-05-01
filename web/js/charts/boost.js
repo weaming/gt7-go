@@ -14,11 +14,11 @@ registerChart('boost', {
       grid: { left: 50, right: 10, top: 30, bottom: 20 },
     });
   },
-  update(laps, idx) {
+  update(laps, idx, liveLap) {
     const chart = charts['boost'];
     if (!chart) return;
     if (laps.length === 0) { chart.setOption({ series: [{ data: [] }, { data: [] }] }); return; }
-    const lap = laps[idx] || laps[0];
+    const lap = liveLap || laps[idx] || laps[0];
     if (!lap || !lap.data_boost) return;
     const x = xAxis(lap.data_speed || lap.data_boost);
     const best = getBestLap(laps);
