@@ -1,16 +1,13 @@
-.PHONY: install build run generate clean
+.PHONY: install run generate clean
 
 generate:
 	go generate ./internal/server/...
 
 run: generate
-	go run .
+	go run . --ps 192.168.1.100
 
 install: generate
 	go install -ldflags="-s -w" -trimpath .
-
-build: generate
-	go build -o gt7-dashboard .
 
 clean:
 	rm -rf internal/server/web
