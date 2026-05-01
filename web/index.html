@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GT7 Dashboard</title>
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+</head>
+<body>
+<div id="header">
+  <h1>GT7 Dashboard</h1>
+  <div id="status-bar">
+    <span id="status-connected" class="status-dot red"></span>
+    <span id="status-text" data-i18n="status.disconnected"></span>
+    <span id="lap-info"></span>
+  </div>
+  <button id="lang-toggle" onclick="i18n.toggle()" style="margin-left:auto;background:#16213e;border:1px solid #333;color:#aaa;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:12px"></button>
+</div>
+
+<div id="tabs">
+  <button class="tab-btn active" data-i18n="tab.analysis" data-tab="0"></button>
+  <button class="tab-btn" data-i18n="tab.raceline" data-tab="1"></button>
+  <button class="tab-btn" data-i18n="tab.race" data-tab="2"></button>
+  <button class="tab-btn" data-i18n="tab.corner" data-tab="3"></button>
+</div>
+
+<div id="tab-content">
+  <div class="tab-pane active" id="tab-0">
+    <div id="lap-table"></div>
+    <div id="chart-speed" class="chart"></div>
+    <div id="chart-timediff" class="chart"></div>
+    <div id="chart-throttle" class="chart"></div>
+    <div id="chart-braking" class="chart"></div>
+    <div id="chart-coasting" class="chart"></div>
+    <div id="chart-yawrate" class="chart"></div>
+    <div id="chart-gear" class="chart"></div>
+    <div id="chart-rpm" class="chart"></div>
+    <div id="chart-boost" class="chart"></div>
+    <div id="chart-tires" class="chart"></div>
+    <div id="chart-variance" class="chart"></div>
+  </div>
+  <div class="tab-pane" id="tab-1">
+    <div id="chart-raceline" class="chart full-height"></div>
+  </div>
+  <div class="tab-pane" id="tab-2">
+    <div id="chart-fuel" class="chart" style="height:400px"></div>
+    <div id="rpm-peaks-table"></div>
+  </div>
+  <div class="tab-pane" id="tab-3">
+    <div id="chart-corner" class="chart full-height"></div>
+  </div>
+</div>
+
+<script src="js/i18n.js"></script>
+<script src="js/ws.js"></script>
+<script src="js/app.js"></script>
+<script src="js/charts/speed.js"></script>
+<script src="js/charts/timediff.js"></script>
+<script src="js/charts/throttle.js"></script>
+<script src="js/charts/braking.js"></script>
+<script src="js/charts/coasting.js"></script>
+<script src="js/charts/yawrate.js"></script>
+<script src="js/charts/gear.js"></script>
+<script src="js/charts/rpm.js"></script>
+<script src="js/charts/boost.js"></script>
+<script src="js/charts/tires.js"></script>
+<script src="js/charts/variance.js"></script>
+<script src="js/charts/raceline.js"></script>
+<script src="js/charts/fuel.js"></script>
+<script src="js/charts/corner.js"></script>
+</body>
+</html>
