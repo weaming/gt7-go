@@ -14,6 +14,7 @@ let isReplayMode = false;
 let isRaceComplete = false;
 let lastPS5Connected = null;
 let circuitLength = 0; // meters, 0 = unknown
+let latestTelemetrySnapshot = null;
 
 function initChart(id) {
   const el = document.getElementById(id);
@@ -131,6 +132,7 @@ function getSelectableLaps() {
 // WebSocket handlers
 ws.on('telemetry', (data) => {
   const snap = data.data || data;
+  latestTelemetrySnapshot = snap;
   gamePaused = snap.is_paused || false;
   isReplayMode = snap.is_replay || false;
   isRaceComplete = snap.is_race_complete || false;
@@ -142,6 +144,7 @@ ws.on('telemetry', (data) => {
 
   if (!snap.in_race) {
     document.getElementById('lap-info').textContent = '';
+    renderDriverDashboard();
     return;
   }
 
@@ -232,7 +235,9 @@ ws.on('telemetry_status', (data) => {
 
 ws.on('disconnected', () => {
   document.getElementById('lap-info').textContent = '';
+  latestTelemetrySnapshot = null;
   updatePS5Status(false, 0);
+  renderDriverDashboard();
 });
 
 // Chart registry
@@ -293,6 +298,7 @@ function updateAllCharts() {
     if (chart) chart.setOption({ xAxis: { max, axisLabel }, grid: { right: 25 } });
   });
   renderLapTable();
+  renderDriverDashboard();
   if (visibleChartNames.has('fuel')) {
     renderShiftAnalysis(selectableLaps, targetLapIndex);
   }
@@ -570,12 +576,182 @@ function lapSortTimestamp(lap) {
 }
 
 function setLapTableHTML(html) {
-  ['lap-table', 'lap-table-race', 'lap-table-raceline'].forEach(id => {
+  ['lap-table-driver', 'lap-table', 'lap-table-race', 'lap-table-raceline'].forEach(id => {
     const container = document.getElementById(id);
     if (container) {
       container.innerHTML = html;
     }
   });
+}
+
+function renderDriverDashboard() {
+  const dashboard = document.getElementById('driver-dashboard');
+  if (!dashboard) return;
+
+  const snap = latestTelemetrySnapshot || {};
+  const hasTelemetry = !!latestTelemetrySnapshot;
+  dashboard.classList.toggle('is-paused', gamePaused);
+  dashboard.classList.toggle('is-finished', isRaceComplete);
+
+  const speed = hasTelemetry ? Math.round(snap.speed || 0) : '--';
+  const rpm = hasTelemetry ? Math.round(snap.rpm || 0) : '--';
+  const gear = formatGear(snap.gear);
+  const suggestedGear = isValidDisplayGear(snap.suggested_gear)
+    ? i18n.t('driver.suggested_gear') + ' ' + snap.suggested_gear
+    : i18n.t('driver.no_suggested_gear');
+
+  setText('driver-speed-value', speed);
+  setText('driver-rpm-value', rpm);
+  setText('driver-gear-value', gear);
+  setText('driver-suggested-gear', hasTelemetry ? suggestedGear : '--');
+
+  const rpmScale = rpmScaleMax(snap.rpm || 0);
+  const rpmPercent = rpmScale > 0 ? (snap.rpm || 0) / rpmScale * 100 : 0;
+  setHeightPercent('driver-rpm-fill', clampPercent(rpmPercent), 'width');
+
+  const throttle = clampPercent(snap.throttle || 0);
+  const brake = clampPercent(snap.brake || 0);
+  setHeightPercent('driver-throttle-fill', throttle, 'height');
+  setHeightPercent('driver-brake-fill', brake, 'height');
+  setText('driver-throttle-value', hasTelemetry ? Math.round(throttle) + '%' : '--%');
+  setText('driver-brake-value', hasTelemetry ? Math.round(brake) + '%' : '--%');
+
+  const totalLaps = snap.total_laps > 0 ? snap.total_laps : '?';
+  setText('driver-current-lap', hasTelemetry && snap.current_lap > 0 ? `${snap.current_lap}/${totalLaps}` : '--');
+  const liveDiffMs = latestTimeDiffMs(liveLap && liveLap.time_diff);
+  setText('driver-live-time', liveLap ? formatLapTicks(liveLap._lap_ticks || liveLap.lap_ticks || 0) : '--');
+  setText('driver-live-diff', liveDiffMs != null ? formatSignedMs(liveDiffMs) : '--');
+  setDriverDiffClass(liveDiffMs);
+
+  setText('driver-last-lap', snap.last_laptime > 0 ? msToTime(snap.last_laptime) : '--');
+  setText('driver-best-lap', snap.best_laptime > 0 ? msToTime(snap.best_laptime) : '--');
+  setText('driver-fuel', formatFuel(snap.fuel, snap.fuel_capacity));
+  setText('driver-boost', hasTelemetry ? Math.max(0, snap.boost || 0).toFixed(2) + ' bar' : '--');
+  setText('driver-tire-slip', hasTelemetry ? formatTireSlip(snap.tire_slip) : '--');
+  setText('driver-water-temp', hasTelemetry ? Math.round(snap.water_temp || 0) + '°C' : '--');
+  setText('driver-oil-temp', hasTelemetry ? Math.round(snap.oil_temp || 0) + '°C' : '--');
+
+  const renderTyre = (id, temp) => {
+    setText(id, formatTemperature(temp, hasTelemetry));
+    setTemperatureColor(id, temp, hasTelemetry);
+  };
+  renderTyre('driver-tyre-fl', snap.tyre_temp_fl);
+  renderTyre('driver-tyre-fr', snap.tyre_temp_fr);
+  renderTyre('driver-tyre-rl', snap.tyre_temp_rl);
+  renderTyre('driver-tyre-rr', snap.tyre_temp_rr);
+}
+
+function setTemperatureColor(id, temp, hasTelemetry) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (hasTelemetry && Number.isFinite(temp) && temp > 0) {
+    el.style.color = tireTemperatureColor(temp);
+  } else {
+    el.style.color = '';
+  }
+}
+
+function tireTemperatureColor(temp) {
+  // Green -> Yellow -> Red with smooth gradient
+  // Below 60: green, 60-80: green->yellow, 80-90: yellow->red, 90+: red
+  if (temp >= 90) return '#e94560';
+  if (temp >= 80) return lerpColor('#f6c85f', '#e94560', (temp - 80) / 10);
+  if (temp >= 60) return lerpColor('#19c37d', '#f6c85f', (temp - 60) / 20);
+  return '#19c37d';
+}
+
+function lerpColor(c1, c2, t) {
+  const r1 = parseInt(c1.slice(1,3), 16), g1 = parseInt(c1.slice(3,5), 16), b1 = parseInt(c1.slice(5,7), 16);
+  const r2 = parseInt(c2.slice(1,3), 16), g2 = parseInt(c2.slice(3,5), 16), b2 = parseInt(c2.slice(5,7), 16);
+  return `rgb(${Math.round(r1+(r2-r1)*t)},${Math.round(g1+(g2-g1)*t)},${Math.round(b1+(b2-b1)*t)})`;
+}
+
+function setText(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = value;
+}
+
+function setHeightPercent(id, percent, property) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.style[property] = `${percent}%`;
+}
+
+function setDriverDiffClass(value) {
+  const el = document.getElementById('driver-live-diff');
+  if (!el) return;
+  el.classList.remove('gain', 'loss');
+  if (value == null || value === 0) return;
+  el.classList.add(value < 0 ? 'gain' : 'loss');
+}
+
+function formatGear(value) {
+  if (value == null) return '--';
+  if (value <= 0 || value === 15) return 'N';
+  return String(value);
+}
+
+function isValidDisplayGear(value) {
+  return Number.isInteger(value) && value > 0 && value < 15;
+}
+
+function formatLapTicks(ticks) {
+  if (!ticks || ticks <= 0) return '--';
+  return msToTime(ticks / 60 * 1000);
+}
+
+function formatSignedMs(value) {
+  if (!value) return '0.000';
+  const sign = value > 0 ? '+' : '-';
+  return sign + msToTime(Math.abs(value));
+}
+
+function latestTimeDiffMs(timeDiff) {
+  if (typeof timeDiff === 'number' && Number.isFinite(timeDiff)) {
+    return timeDiff;
+  }
+  if (!timeDiff || !Array.isArray(timeDiff.timedelta) || timeDiff.timedelta.length === 0) {
+    return null;
+  }
+  const value = timeDiff.timedelta[timeDiff.timedelta.length - 1];
+  return Number.isFinite(value) ? value : null;
+}
+
+function formatFuel(fuel, capacity) {
+  if (fuel == null || !Number.isFinite(fuel)) return '--';
+  if (capacity > 0) {
+    const percent = Math.round(fuel / capacity * 100);
+    return `${Math.round(fuel)}L · ${percent}%`;
+  }
+  return `${Math.round(fuel)}L`;
+}
+
+function formatTireSlip(value) {
+  if (value == null || !Number.isFinite(value)) return '--';
+  return (value / 4).toFixed(2);
+}
+
+function formatTemperature(value, hasTelemetry) {
+  if (!hasTelemetry || value == null || !Number.isFinite(value)) return '--';
+  return Math.round(value) + '°C';
+}
+
+function clampPercent(value) {
+  if (!Number.isFinite(value)) return 0;
+  return Math.min(100, Math.max(0, value));
+}
+
+function rpmScaleMax(currentRpm) {
+  let maxRPM = currentRpm || 0;
+  const selectableLaps = getSelectableLaps();
+  for (const lap of selectableLaps) {
+    if (!lap || !lap.data_rpm) continue;
+    for (const value of lap.data_rpm) {
+      if (value > maxRPM) maxRPM = value;
+    }
+  }
+  const rounded = Math.ceil(maxRPM / 1000) * 1000;
+  return Math.min(Math.max(rounded, 8000), 14000);
 }
 
 function lapTrackName(lap) {

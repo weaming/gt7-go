@@ -190,7 +190,7 @@ func (e *Engine) broadcastSnapshot() {
 		IsRaceComplete: t.RaceComplete(),
 		PS5Connected:   ps5Connected,
 
-		SuggestedGear: int(t.SuggestedGear()),
+		SuggestedGear: normalizedSuggestedGear(t),
 
 		SuspensionFL: float64(t.SuspensionHeightMetres().FrontLeft),
 		SuspensionFR: float64(t.SuspensionHeightMetres().FrontRight),
@@ -305,6 +305,23 @@ func (e *Engine) startNewLap(t *gttelemetry.Transformer, snapshot *tmodel.Teleme
 			e.hub.Broadcast(cur)
 		}
 	}
+}
+
+func normalizedSuggestedGear(t *gttelemetry.Transformer) int {
+	suggestedGear := int(t.SuggestedGear())
+	if suggestedGear <= 0 || suggestedGear == 15 {
+		return 0
+	}
+
+	totalGears := t.Transmission().Gears
+	if totalGears > 0 && suggestedGear > totalGears {
+		return 0
+	}
+	if totalGears == 0 && suggestedGear > 10 {
+		return 0
+	}
+
+	return suggestedGear
 }
 
 func (e *Engine) computeTireRatios(t *gttelemetry.Transformer) []float64 {

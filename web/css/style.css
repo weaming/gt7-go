@@ -52,16 +52,75 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 
 .tab-pane { display: none; }
 .tab-pane.active { display: block; }
-#tab-3.active { display: flex; flex-direction: column; height: calc(100vh - 120px); }
-#tab-3 .chart { flex: 1; height: auto; min-height: 100px; }
+#tab-corner.active { display: flex; flex-direction: column; height: calc(100vh - 120px); }
+#tab-corner .chart { flex: 1; height: auto; min-height: 100px; }
 
 .chart { height: 200px; margin-bottom: 8px; }
 .chart.full-height { height: calc(100vh - 120px); }
-#tab-1.active { display: flex; flex-direction: column; height: calc(100vh - 120px); }
-#tab-1 .lap-table { flex: 0 0 auto; max-height: 40vh; overflow-y: auto; }
-#tab-1 .chart.full-height { height: auto; flex: 1; min-height: 100px; }
+#tab-raceline.active { display: flex; flex-direction: column; height: calc(100vh - 120px); }
+#tab-raceline .lap-table { flex: 0 0 auto; max-height: 40vh; overflow-y: auto; }
+#tab-raceline .chart.full-height { height: auto; flex: 1; min-height: 100px; }
+#tab-driver.active { display: flex; flex-direction: column; gap: 10px; min-height: calc(100vh - 120px); }
+#tab-driver .lap-table { flex: 0 0 auto; max-height: 34vh; overflow-y: auto; }
 
-.lap-table table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.driver-dashboard {
+  display: grid;
+  grid-template-columns: minmax(280px, 1.2fr) minmax(120px, 0.35fr) minmax(320px, 1fr);
+  grid-template-areas:
+    "primary controls grid"
+    "tyres controls grid";
+  gap: 10px;
+  min-height: 430px;
+}
+.driver-primary,
+.driver-controls,
+.driver-grid,
+.driver-tyres {
+  background: #101725;
+  border: 1px solid #293348;
+  border-radius: 6px;
+}
+.driver-primary { grid-area: primary; padding: 18px; display: grid; grid-template-columns: 1fr 150px; gap: 16px; align-items: stretch; }
+.driver-controls { grid-area: controls; padding: 16px 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.driver-grid { grid-area: grid; display: grid; grid-template-columns: repeat(2, minmax(150px, 1fr)); gap: 1px; background: #293348; overflow: hidden; }
+.driver-tyres { grid-area: tyres; padding: 14px; display: grid; grid-template-columns: repeat(2, minmax(90px, 1fr)); gap: 10px; }
+.driver-label { color: #8a95aa; font-size: 12px; text-transform: uppercase; }
+.driver-speed { display: flex; flex-direction: column; justify-content: center; min-width: 0; }
+.driver-speed-value { color: #f2f7ff; font-variant-numeric: tabular-nums; line-height: 0.9; }
+.driver-speed-value span:first-child { font-size: clamp(72px, 10vw, 144px); font-weight: 800; }
+.driver-speed-value span:last-child { margin-left: 10px; color: #9aa8bf; font-size: 18px; }
+.driver-gear {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-left: 1px solid #293348;
+  min-width: 130px;
+}
+.driver-gear-value { color: #f6c85f; font-size: 112px; font-weight: 800; line-height: 0.9; font-variant-numeric: tabular-nums; }
+.driver-subvalue { margin-top: 8px; color: #9aa8bf; font-size: 13px; min-height: 18px; }
+.driver-rpm { grid-column: 1 / -1; align-self: end; }
+.driver-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 7px; color: #d8e1f0; font-variant-numeric: tabular-nums; }
+.driver-rpm-bar { height: 18px; background: #202a3a; border-radius: 4px; overflow: hidden; }
+.driver-rpm-bar div { height: 100%; width: 0; background: linear-gradient(90deg, #19c37d 0%, #f6c85f 68%, #e94560 100%); transition: width 100ms linear; }
+.driver-pedal { display: grid; grid-template-rows: 1fr auto auto; gap: 8px; justify-items: center; min-height: 360px; }
+.driver-pedal-track { position: relative; width: 42px; height: 100%; min-height: 260px; background: #202a3a; border-radius: 5px; overflow: hidden; }
+.driver-pedal-track div { position: absolute; left: 0; bottom: 0; width: 100%; height: 0; transition: height 100ms linear; }
+.driver-pedal-track.throttle div { background: #19c37d; }
+.driver-pedal-track.brake div { background: #e94560; }
+.driver-pedal-value { color: #f2f7ff; font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.driver-metric { background: #101725; padding: 14px; min-height: 84px; display: flex; flex-direction: column; justify-content: center; gap: 8px; }
+.driver-metric strong { color: #f2f7ff; font-size: 24px; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.driver-metric strong.gain { color: #19c37d; }
+.driver-metric strong.loss { color: #e94560; }
+.driver-tyre { min-height: 72px; background: #172033; border: 1px solid #293348; border-radius: 5px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; }
+.driver-tyre span { color: #8a95aa; font-size: 12px; }
+.driver-tyre strong { color: #f2f7ff; font-size: 26px; font-variant-numeric: tabular-nums; }
+.driver-dashboard.is-paused .driver-speed-value,
+.driver-dashboard.is-paused .driver-gear-value { opacity: 0.55; }
+
+.lap-table { overflow-x: auto; }
+.lap-table table { width: 100%; min-width: 980px; border-collapse: collapse; font-size: 12px; }
 .lap-table th, .lap-table td { padding: 4px 8px; text-align: right; border-bottom: 1px solid #333; }
 .lap-table th { background: #16213e; color: #e94560; position: sticky; top: 0; }
 .lap-table td:first-child, .lap-table th:first-child { text-align: center; }
@@ -99,11 +158,61 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .shift-summary { font-size: 11px; color: #888; padding: 6px 0 4px 0; }
 
 @media (max-width: 760px) {
-  #header { align-items: flex-start; flex-wrap: wrap; }
-  #header-actions { width: 100%; justify-content: flex-end; flex-wrap: wrap; }
-  #lap-data-tools { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
-  #lap-data-tools {
-    min-width: min(100vw - 20px, 420px);
+  body { padding: 6px; }
+  #header { align-items: flex-start; flex-wrap: wrap; gap: 6px 12px; margin-bottom: 6px; }
+  #header h1 { font-size: 18px; line-height: 1.15; }
+  #status-bar { flex: 1; gap: 4px; font-size: 11px; flex-wrap: nowrap; min-width: 0; }
+  #lap-info { display: none; }
+  #header-actions { width: 100%; flex-wrap: wrap; gap: 6px; }
+  #lap-data-tools { display: contents; }
+  #header-actions > #lang-toggle { margin-left: auto; }
+  #lap-file-select { order: 1; min-width: 100%; }
+  #lang-toggle, #lap-data-tools button { padding: 4px 8px; }
+  #tabs { overflow-x: auto; margin-bottom: 6px; }
+  .tab-btn { flex: 0 0 auto; padding: 7px 13px; white-space: nowrap; }
+  #tab-driver.active { gap: 0; min-height: auto; }
+  #tab-driver .lap-table { display: none; }
+  .driver-dashboard {
+    grid-template-columns: minmax(0, 1fr) 76px;
+    grid-template-areas:
+      "primary controls"
+      "grid grid"
+      "tyres tyres";
+    gap: 6px;
+    min-height: 0;
   }
-  #lap-file-select { min-width: 100%; }
+  .driver-primary,
+  .driver-controls,
+  .driver-grid,
+  .driver-tyres { border-radius: 5px; }
+  .driver-primary {
+    padding: 10px;
+    grid-template-columns: minmax(0, 1fr) 70px;
+    gap: 8px;
+    min-height: 168px;
+  }
+  .driver-label { font-size: 10px; }
+  .driver-speed-value span:first-child { font-size: 58px; }
+  .driver-speed-value span:last-child { margin-left: 4px; font-size: 14px; }
+  .driver-gear { min-width: 0; border-left: 1px solid #293348; }
+  .driver-gear-value { font-size: 64px; }
+  .driver-subvalue { margin-top: 5px; font-size: 11px; text-align: center; }
+  .driver-rpm { align-self: end; }
+  .driver-row { margin-bottom: 5px; font-size: 12px; }
+  .driver-rpm-bar { height: 14px; }
+  .driver-controls {
+    padding: 10px 7px;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    min-height: 168px;
+  }
+  .driver-pedal { min-height: 144px; gap: 4px; }
+  .driver-pedal-track { width: 26px; min-height: 104px; }
+  .driver-pedal-value { font-size: 13px; }
+  .driver-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .driver-metric { min-height: 38px; padding: 5px 8px; gap: 3px; }
+  .driver-metric strong { font-size: 16px; }
+  .driver-tyres { padding: 5px; grid-template-columns: 1fr 1fr; gap: 5px; }
+  .driver-tyre { min-height: 38px; padding: 0 6px; flex-direction: column; justify-content: center; gap: 2px; }
+  .driver-tyre strong { font-size: 15px; }
 }

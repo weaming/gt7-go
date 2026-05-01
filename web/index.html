@@ -40,14 +40,103 @@
 </div>
 
 <div id="tabs">
-  <button class="tab-btn active" data-i18n="tab.analysis" data-tab="0"></button>
-  <button class="tab-btn" data-i18n="tab.raceline" data-tab="1"></button>
-  <button class="tab-btn" data-i18n="tab.race" data-tab="2"></button>
-  <button class="tab-btn" data-i18n="tab.corner" data-tab="3"></button>
+  <button class="tab-btn active" data-i18n="tab.driver" data-tab="driver"></button>
+  <button class="tab-btn" data-i18n="tab.analysis" data-tab="analysis"></button>
+  <button class="tab-btn" data-i18n="tab.raceline" data-tab="raceline"></button>
+  <button class="tab-btn" data-i18n="tab.race" data-tab="race"></button>
+  <button class="tab-btn" data-i18n="tab.corner" data-tab="corner"></button>
 </div>
 
 <div id="tab-content">
-  <div class="tab-pane active" id="tab-0">
+  <div class="tab-pane active" id="tab-driver">
+    <div id="lap-table-driver" class="lap-table"></div>
+    <div class="driver-dashboard" id="driver-dashboard">
+      <section class="driver-primary">
+        <div class="driver-speed">
+          <div class="driver-label" data-i18n="driver.speed"></div>
+          <div class="driver-speed-value"><span id="driver-speed-value">--</span><span>km/h</span></div>
+        </div>
+        <div class="driver-gear">
+          <div class="driver-label" data-i18n="driver.gear"></div>
+          <div class="driver-gear-value" id="driver-gear-value">--</div>
+          <div class="driver-subvalue" id="driver-suggested-gear">--</div>
+        </div>
+        <div class="driver-rpm">
+          <div class="driver-row">
+            <span class="driver-label" data-i18n="driver.rpm"></span>
+            <span id="driver-rpm-value">--</span>
+          </div>
+          <div class="driver-rpm-bar">
+            <div id="driver-rpm-fill"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="driver-controls">
+        <div class="driver-pedal">
+          <div class="driver-pedal-track brake"><div id="driver-brake-fill"></div></div>
+          <div class="driver-pedal-value" id="driver-brake-value">--%</div>
+          <div class="driver-label" data-i18n="driver.brake"></div>
+        </div>
+        <div class="driver-pedal">
+          <div class="driver-pedal-track throttle"><div id="driver-throttle-fill"></div></div>
+          <div class="driver-pedal-value" id="driver-throttle-value">--%</div>
+          <div class="driver-label" data-i18n="driver.throttle"></div>
+        </div>
+      </section>
+
+      <section class="driver-grid">
+        <div class="driver-metric">
+          <span class="driver-label" data-i18n="driver.current_lap"></span>
+          <strong id="driver-current-lap">--</strong>
+        </div>
+        <div class="driver-metric">
+          <span class="driver-label" data-i18n="driver.live_time"></span>
+          <strong id="driver-live-time">--</strong>
+        </div>
+        <div class="driver-metric">
+          <span class="driver-label" data-i18n="driver.live_diff"></span>
+          <strong id="driver-live-diff">--</strong>
+        </div>
+        <div class="driver-metric">
+          <span class="driver-label" data-i18n="driver.last_lap"></span>
+          <strong id="driver-last-lap">--</strong>
+        </div>
+        <div class="driver-metric">
+          <span class="driver-label" data-i18n="driver.fuel"></span>
+          <strong id="driver-fuel">--</strong>
+        </div>
+        <div class="driver-metric">
+          <span class="driver-label" data-i18n="driver.best_lap"></span>
+          <strong id="driver-best-lap">--</strong>
+        </div>
+        <div class="driver-metric">
+          <span class="driver-label" data-i18n="driver.boost"></span>
+          <strong id="driver-boost">--</strong>
+        </div>
+        <div class="driver-metric">
+          <span class="driver-label" data-i18n="driver.tire_slip"></span>
+          <strong id="driver-tire-slip">--</strong>
+        </div>
+        <div class="driver-metric">
+          <span class="driver-label" data-i18n="driver.water_temp"></span>
+          <strong id="driver-water-temp">--</strong>
+        </div>
+        <div class="driver-metric">
+          <span class="driver-label" data-i18n="driver.oil_temp"></span>
+          <strong id="driver-oil-temp">--</strong>
+        </div>
+      </section>
+
+      <section class="driver-tyres">
+        <div class="driver-tyre"><span>FL</span><strong id="driver-tyre-fl">--</strong></div>
+        <div class="driver-tyre"><span>FR</span><strong id="driver-tyre-fr">--</strong></div>
+        <div class="driver-tyre"><span>RL</span><strong id="driver-tyre-rl">--</strong></div>
+        <div class="driver-tyre"><span>RR</span><strong id="driver-tyre-rr">--</strong></div>
+      </section>
+    </div>
+  </div>
+  <div class="tab-pane" id="tab-analysis">
     <div id="lap-table" class="lap-table"></div>
     <div id="chart-speed" class="chart"></div>
     <div id="chart-timediff" class="chart"></div>
@@ -61,16 +150,16 @@
     <div id="chart-tires" class="chart"></div>
     <div id="chart-variance" class="chart"></div>
   </div>
-  <div class="tab-pane" id="tab-1">
+  <div class="tab-pane" id="tab-raceline">
     <div id="lap-table-raceline" class="lap-table"></div>
     <div id="chart-raceline" class="chart full-height"></div>
   </div>
-  <div class="tab-pane" id="tab-2">
+  <div class="tab-pane" id="tab-race">
     <div id="lap-table-race" class="lap-table"></div>
     <div id="chart-fuel" class="chart" style="height:400px"></div>
     <div id="rpm-peaks-table"></div>
   </div>
-  <div class="tab-pane" id="tab-3">
+  <div class="tab-pane" id="tab-corner">
     <div id="chart-corner-track" class="chart" style="flex:45"></div>
     <div id="chart-corner" class="chart" style="flex:55"></div>
   </div>

@@ -1,6 +1,7 @@
 const i18n = {
   lang: 'zh',
   translations: {
+    'tab.driver': { zh: '驾驶仪表', en: 'Driver Dash' },
     'tab.analysis': { zh: '圈速分析', en: 'Lap Analysis' },
     'tab.raceline': { zh: '赛车线', en: 'Racing Line' },
     'tab.race': { zh: '比赛', en: 'Race' },
@@ -49,6 +50,24 @@ const i18n = {
     'status.ps5_live': { zh: '上游已连接', en: 'Upstream connected' },
     'status.ps5_waiting': { zh: '等待上游', en: 'Waiting upstream' },
     'status.finished': { zh: '已完赛', en: 'FINISHED' },
+
+    'driver.speed': { zh: '速度', en: 'Speed' },
+    'driver.gear': { zh: '档位', en: 'Gear' },
+    'driver.rpm': { zh: '转速', en: 'RPM' },
+    'driver.throttle': { zh: '油门', en: 'Throttle' },
+    'driver.brake': { zh: '刹车', en: 'Brake' },
+    'driver.current_lap': { zh: '当前圈', en: 'Current Lap' },
+    'driver.live_time': { zh: '本圈计时', en: 'Lap Time' },
+    'driver.live_diff': { zh: '参考差值', en: 'Reference Diff' },
+    'driver.last_lap': { zh: '上一圈', en: 'Last Lap' },
+    'driver.best_lap': { zh: '最佳圈', en: 'Best Lap' },
+    'driver.fuel': { zh: '燃油', en: 'Fuel' },
+    'driver.boost': { zh: '增压', en: 'Boost' },
+    'driver.tire_slip': { zh: '轮胎滑移', en: 'Tire Slip' },
+    'driver.water_temp': { zh: '水温', en: 'Water Temp' },
+    'driver.oil_temp': { zh: '油温', en: 'Oil Temp' },
+    'driver.suggested_gear': { zh: '建议', en: 'Suggested' },
+    'driver.no_suggested_gear': { zh: '无建议', en: 'No hint' },
 
     'misc.theoretical_best': { zh: '理论最佳', en: 'Theoretical Best' },
     'misc.best_lap': { zh: '最佳圈', en: 'Best Lap' },
