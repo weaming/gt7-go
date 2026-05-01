@@ -82,8 +82,7 @@ func main() {
 
 	rec := recorder.New(telem.GetClient(), *dataDir)
 
-	var srv server.ServerInterface
-	srv = server.New(h, lapMgr, telem, rec, fwd, *dataDir)
+	var srv server.ServerInterface = server.New(h, lapMgr, telem, rec, fwd, *dataDir)
 
 	httpServer := &http.Server{
 		Addr:    *addr,

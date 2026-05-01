@@ -43,11 +43,30 @@ type Engine struct {
 	circuitVariation string
 }
 
+type telemetryDataState struct {
+	canStartLap             bool
+	canAdvanceLap           bool
+	canAppendCurrentLapTick bool
+	shouldSaveCompletedLap  bool
+}
+
 func New(h *hub.Hub, lapMgr *lap.Manager, psIP string) *Engine {
 	return &Engine{
 		hub:           h,
 		lapManager:    lapMgr,
 		playstationIP: psIP,
+	}
+}
+
+func newTelemetryDataState(snapshot *tmodel.TelemetrySnapshot, isReplayRecordEnabled bool) telemetryDataState {
+	isTrackLap := snapshot.InRace && snapshot.CurrentLap > 0
+	isRunning := isTrackLap && !snapshot.IsPaused
+
+	return telemetryDataState{
+		canStartLap:             isTrackLap && !snapshot.IsRaceComplete,
+		canAdvanceLap:           isRunning,
+		canAppendCurrentLapTick: isRunning && !snapshot.IsRaceComplete,
+		shouldSaveCompletedLap:  !snapshot.IsReplay || isReplayRecordEnabled,
 	}
 }
 
@@ -171,14 +190,14 @@ func (e *Engine) broadcastSnapshot() {
 		RotationYaw:   float64(t.RotationEnvelope().Yaw),
 		RotationRoll:  float64(t.RotationEnvelope().Roll),
 
-		TyreTempFL: float64(t.TyreTemperatureCelsius().FrontLeft),
-		TyreTempFR: float64(t.TyreTemperatureCelsius().FrontRight),
-		TyreTempRL: float64(t.TyreTemperatureCelsius().RearLeft),
-		TyreTempRR: float64(t.TyreTemperatureCelsius().RearRight),
-		TireSlipFL: tireRatios[0],
-		TireSlipFR: tireRatios[1],
-		TireSlipRL: tireRatios[2],
-		TireSlipRR: tireRatios[3],
+		TyreTempFL:  float64(t.TyreTemperatureCelsius().FrontLeft),
+		TyreTempFR:  float64(t.TyreTemperatureCelsius().FrontRight),
+		TyreTempRL:  float64(t.TyreTemperatureCelsius().RearLeft),
+		TyreTempRR:  float64(t.TyreTemperatureCelsius().RearRight),
+		TireSlipFL:  tireRatios[0],
+		TireSlipFR:  tireRatios[1],
+		TireSlipRL:  tireRatios[2],
+		TireSlipRR:  tireRatios[3],
 		TireSlipAvg: tireSlipAvg,
 		TireSlipMax: tireSlipMax,
 
@@ -226,22 +245,20 @@ func (e *Engine) broadcastSnapshot() {
 	}
 
 	curLap := snapshot.CurrentLap
-	shouldRecordReplay := e.forceRecord.Load()
-	shouldSaveCompletedLap := !isReplay || shouldRecordReplay
+	dataState := newTelemetryDataState(snapshot, e.forceRecord.Load())
 
-	if !e.lapManager.IsCurrentLapActive() && curLap > 0 && !snapshot.IsRaceComplete {
+	if !e.lapManager.IsCurrentLapActive() && dataState.canStartLap {
 		e.startNewLap(t, snapshot)
 	}
 
-	if !flags.GamePaused && e.lapManager.IsCurrentLapActive() {
-		e.handleLapTransition(t, shouldSaveCompletedLap)
-		if !e.lapManager.IsCurrentLapActive() && curLap > 0 && !snapshot.IsRaceComplete {
+	if dataState.canAdvanceLap && e.lapManager.IsCurrentLapActive() {
+		e.handleLapTransition(t, dataState.shouldSaveCompletedLap)
+		if !e.lapManager.IsCurrentLapActive() && dataState.canStartLap {
 			e.startNewLap(t, snapshot)
 		}
 	}
 
-	// Do not persist telemetry samples while the game is paused or after the race is complete.
-	if !flags.GamePaused && !snapshot.IsRaceComplete && e.lapManager.IsCurrentLapActive() {
+	if dataState.canAppendCurrentLapTick && e.lapManager.IsCurrentLapActive() {
 		tireTemps := models.CornerSet{
 			FrontLeft:  t.TyreTemperatureCelsius().FrontLeft,
 			FrontRight: t.TyreTemperatureCelsius().FrontRight,

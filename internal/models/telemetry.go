@@ -29,14 +29,14 @@ type TelemetrySnapshot struct {
 	RotationYaw   float64 `json:"rotation_yaw"`
 	RotationRoll  float64 `json:"rotation_roll"`
 
-	TyreTempFL float64 `json:"tyre_temp_fl"`
-	TyreTempFR float64 `json:"tyre_temp_fr"`
-	TyreTempRL float64 `json:"tyre_temp_rl"`
-	TyreTempRR float64 `json:"tyre_temp_rr"`
-	TireSlipFL float64 `json:"tire_slip_fl"`
-	TireSlipFR float64 `json:"tire_slip_fr"`
-	TireSlipRL float64 `json:"tire_slip_rl"`
-	TireSlipRR float64 `json:"tire_slip_rr"`
+	TyreTempFL  float64 `json:"tyre_temp_fl"`
+	TyreTempFR  float64 `json:"tyre_temp_fr"`
+	TyreTempRL  float64 `json:"tyre_temp_rl"`
+	TyreTempRR  float64 `json:"tyre_temp_rr"`
+	TireSlipFL  float64 `json:"tire_slip_fl"`
+	TireSlipFR  float64 `json:"tire_slip_fr"`
+	TireSlipRL  float64 `json:"tire_slip_rl"`
+	TireSlipRR  float64 `json:"tire_slip_rr"`
 	TireSlipAvg float64 `json:"tire_slip_avg"`
 	TireSlipMax float64 `json:"tire_slip_max"`
 

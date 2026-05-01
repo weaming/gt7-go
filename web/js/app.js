@@ -159,6 +159,8 @@ ws.on('telemetry', (data) => {
   document.getElementById('lap-info').textContent =
     `Lap ${snap.current_lap}/${snap.total_laps}  ${currentVehicleModel}${pauseText}${replayText}${finishText}`;
 
+  renderDriverDashboard();
+
   if (gamePaused || isRaceComplete) return;
 
   if (snap.current_lap !== currentLiveLapNum) {
@@ -185,15 +187,9 @@ ws.on('live_lap_diff', (data) => {
   }
 });
 
-ws.on('lap_completed', (data) => {
-  const wasLiveSelected = isLiveLapSelected();
-  const completedLap = data && (data.lap || data.data || data);
-
+ws.on('lap_completed', () => {
   liveLap = null;
-  if (wasLiveSelected && completedLap && !isForceRecording) {
-    selectedTarget = newHistoryTarget(0, completedLap);
-    normalizeSelectedTarget();
-  } else if (!isForceRecording) {
+  if (selectedTarget.type !== 'live') {
     normalizeSelectedTarget();
   }
   updateAllCharts();
@@ -269,6 +265,13 @@ function updateAllCharts() {
   const best = getBestLap(selectableLaps);
   const visibleChartNames = getVisibleChartNames();
   const isLive = selectedTarget.type === 'live' && !!liveLap;
+
+  if (selectedTarget.type === 'live' && !liveLap) {
+    renderLapTable();
+    renderDriverDashboard();
+    return;
+  }
+
   // Use the best lap's total distance as the x-axis max so all laps
   // render on the same scale. When the best lap is incomplete, fall
   // back to circuit length for proper right-aligned comparison.
@@ -378,6 +381,9 @@ function getSelectedLapIndex(selectableLaps) {
   if (selectedTarget.type === 'live' && liveLap) {
     return selectableLaps.length - 1;
   }
+  if (selectedTarget.type === 'live') {
+    return -1;
+  }
   const historyIndex = findSelectedHistoryIndex();
   if (historyIndex >= 0) {
     return historyIndex;
@@ -436,7 +442,7 @@ function isHistoryLapSelected(index) {
   if (selectedTarget.type === 'history') {
     return findSelectedHistoryIndex() === index;
   }
-  return selectedTarget.type === 'live' && !liveLap && fallbackHistoryIndex() === index;
+  return false;
 }
 
 function isLiveLapSelected() {

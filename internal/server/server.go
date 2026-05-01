@@ -22,7 +22,8 @@ import (
 	"github.com/weaming/gt7-go/internal/telemetry"
 )
 
-//go:generate cp -r ../../web ./web
+//go:generate rm -rf web
+//go:generate cp -R ../../web web
 
 //go:embed web
 var embeddedWeb embed.FS
@@ -50,10 +51,10 @@ type lapArchive struct {
 
 type lapFileInfo struct {
 	Filename  string    `json:"filename"`
-	Label    string    `json:"label"`
-	SavedAt  time.Time `json:"saved_at"`
+	Label     string    `json:"label"`
+	SavedAt   time.Time `json:"saved_at"`
 	UpdatedAt time.Time `json:"updated_at"`
-	LapCount int       `json:"lap_count"`
+	LapCount  int       `json:"lap_count"`
 }
 
 func New(
@@ -504,7 +505,7 @@ func stableArchiveFallbackID(laps []*models.Lap) string {
 		if lap == nil {
 			continue
 		}
-		return fmt.Sprintf("%d_%s_%s_%s_%d", lap.LapFinishTime, lap.LapTicks, lap.CarID, shortArchiveName(lap.CircuitID, 16), lap.Number)
+		return fmt.Sprintf("%d_%d_%d_%s_%d", lap.LapFinishTime, lap.LapTicks, lap.CarID, shortArchiveName(lap.CircuitID, 16), lap.Number)
 	}
 	return "empty"
 }
